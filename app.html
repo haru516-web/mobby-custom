@@ -13,12 +13,7 @@
       <button id="tabDesign" class="tab active">デザイン</button>
       <button id="tabGallery" class="tab">ランキング</button>
     </nav>
-    <div class="right">
-      <img id="userAvatar" class="avatar hidden" alt="ユーザーアイコン" />
-      <span id="userBadge" class="badge">connecting...</span>
-      <button id="btnLogin" class="btn" type="button">Googleでログイン</button>
-      <button id="btnLogout" class="btn" type="button">ログアウト</button>
-    </div>
+    <div class="right"></div>
   </header>
 
   <main class="container">
@@ -46,7 +41,9 @@
         </div>
 
         <p class="muted">
-          操作：クリックで追加 / ドラッグで移動 / ホイールで拡大縮小 / Q,Eで回転 / Deleteで削除 / スマホは選択→二本指で拡大縮小
+          操作：
+          <span class="deviceDesktop">クリックで追加 / ドラッグで移動 / ホイールで拡大縮小 / Q,Eで回転 / Deleteで削除</span>
+          <span class="deviceMobile">タップで選択 / ドラッグで移動 / 二本指で拡大縮小</span>
         </p>
         <div id="publishStatus" class="muted"></div>
       </div>
@@ -57,6 +54,7 @@
           <div class="panelActions">
             <button id="btnUndo" class="btn" type="button">戻す</button>
             <button id="btnRedo" class="btn" type="button">進める</button>
+            <button id="btnDelete" class="btn" type="button">削除</button>
           </div>
         </div>
         <div class="panelTabs">
@@ -195,13 +193,7 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <h2 style="margin:0;">ランキング（いいね順）</h2>
-          <div class="row" style="gap:8px;margin:0;">
-            <div class="menuWrap">
-              <button id="btnRankFilter" class="btn" type="button">全体ランキング ▾</button>
-              <div id="rankFilterMenu" class="menuPanel hidden"></div>
-            </div>
-            <button id="btnRefresh" class="btn" type="button">更新</button>
-          </div>
+          <button id="btnRefresh" class="btn" type="button">更新</button>
         </div>
         <div id="galleryGrid" class="galleryGrid"></div>
         <div id="galleryStatus" class="muted"></div>
