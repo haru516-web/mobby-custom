@@ -9,6 +9,7 @@ const tabGallery = document.getElementById("tabGallery");
 const viewDesign = document.getElementById("viewDesign");
 const viewGallery = document.getElementById("viewGallery");
 
+const userAvatar = document.getElementById("userAvatar");
 const userBadge = document.getElementById("userBadge");
 const btnLogin = document.getElementById("btnLogin");
 const btnLogout = document.getElementById("btnLogout");
@@ -84,7 +85,7 @@ modal?.addEventListener("click", (e) => {
 const STICKERS = [
   { name: "Star", url: "assets/stickers/star.png" },
   { name: "Heart", url: "assets/stickers/heart.png" },
-  { name: "Logo", url: "assets/stickers/logo.png" },
+  { name: "Logo", url: "assets/stickers/Logo.png" },
 
   { name: "部室たまり場モビィ", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },
   { name: "裏垢拡散モビィ", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
@@ -477,11 +478,26 @@ btnRefresh?.addEventListener("click", async () => {
 watchAuth((user) => {
   if (user) {
     uid = user.uid;
-    if (userBadge) userBadge.textContent = `uid: ${uid.slice(0, 6)}...`;
+    const label = user.displayName || user.email || `uid: ${uid.slice(0, 6)}...`;
+    if (userBadge) userBadge.textContent = label;
+    if (userAvatar) {
+      if (user.photoURL) {
+        userAvatar.src = user.photoURL;
+        userAvatar.title = label;
+        userAvatar.classList.remove("hidden");
+      } else {
+        userAvatar.removeAttribute("src");
+        userAvatar.classList.add("hidden");
+      }
+    }
     setEditEnabled(true);
   } else {
     uid = "";
     if (userBadge) userBadge.textContent = "閲覧モード";
+    if (userAvatar) {
+      userAvatar.removeAttribute("src");
+      userAvatar.classList.add("hidden");
+    }
     setEditEnabled(false);
   }
   gallery = createGallery({
