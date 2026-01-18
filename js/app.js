@@ -1,4 +1,4 @@
-import { ensureAnonLogin, db, storage } from "./firebase.js";
+﻿import { ensureAnonLogin, db, storage } from "./firebase.js";
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
@@ -27,7 +27,6 @@ const panelDraw = document.getElementById("panelDraw");
 const panelSticker = document.getElementById("panelSticker");
 const btnUndo = document.getElementById("btnUndo");
 const btnRedo = document.getElementById("btnRedo");
-const btnDelete = document.getElementById("btnDelete");
 
 const textInput = document.getElementById("textInput");
 const textSize = document.getElementById("textSize");
@@ -84,38 +83,38 @@ const STICKERS = [
   { name: "Heart", url: "assets/stickers/heart.png" },
   { name: "Logo", url: "assets/stickers/Logo.png" },
 
-  { name: "部室たまり場モビィ", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },
-  { name: "裏垢拡散モビィ", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
-  { name: "舞台袖実行委員モビィ", url: "assets/stickers/モビィ透過済男/舞台袖実行委員モビィ.png" },
-  { name: "自習室モビィ", url: "assets/stickers/モビィ透過済男/自習室モビィ.png" },
-  { name: "理科室研究モビィ", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },
-  { name: "文化祭センターステージモビィ", url: "assets/stickers/モビィ透過済男/文化祭センターステージモビィ.png" },
-  { name: "教科書落書きモビィ", url: "assets/stickers/モビィ透過済男/教科書落書きモビィ.png" },
-  { name: "成績掲示板モビィ", url: "assets/stickers/モビィ透過済男/成績掲示板モビィ.png" },
-  { name: "応援団長モビィ", url: "assets/stickers/モビィ透過済男/応援団長モビィ.png" },
-  { name: "廊下ランウェイモビィ", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },
-  { name: "屋上自由時間モビィ", url: "assets/stickers/モビィ透過済男/屋上自由時間モビィ.png" },
-  { name: "学級委員モビィ", url: "assets/stickers/モビィ透過済男/学級委員モビィ.png" },
-  { name: "図書委員モビィ", url: "assets/stickers/モビィ透過済男/図書委員モビィ.png" },
-  { name: "制服アレンジモビィ", url: "assets/stickers/モビィ透過済男/制服アレンジモビィ.png" },
-  { name: "体育祭モビィ", url: "assets/stickers/モビィ透過済男/体育祭モビィ.png" },
-  { name: "もしランキングモビィ", url: "assets/stickers/モビィ透過済男/もしランキングモビィ.png" },
+  { name: "驛ｨ螳､縺溘∪繧雁ｴ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/驛ｨ螳､縺溘∪繧雁ｴ繝｢繝薙ぅ.png" },
+  { name: "陬丞椶諡｡謨｣繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/陬丞椶諡｡謨｣繝｢繝薙ぅ.png" },
+  { name: "闊槫床陲門ｮ溯｡悟ｧ泌藤繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/闊槫床陲門ｮ溯｡悟ｧ泌藤繝｢繝薙ぅ.png" },
+  { name: "閾ｪ鄙貞ｮ､繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/閾ｪ鄙貞ｮ､繝｢繝薙ぅ.png" },
+  { name: "逅・ｧ大ｮ､遐皮ｩｶ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/逅・ｧ大ｮ､遐皮ｩｶ繝｢繝薙ぅ.png" },
+  { name: "譁・喧逾ｭ繧ｻ繝ｳ繧ｿ繝ｼ繧ｹ繝・・繧ｸ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/譁・喧逾ｭ繧ｻ繝ｳ繧ｿ繝ｼ繧ｹ繝・・繧ｸ繝｢繝薙ぅ.png" },
+  { name: "謨咏ｧ第嶌關ｽ譖ｸ縺阪Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/謨咏ｧ第嶌關ｽ譖ｸ縺阪Δ繝薙ぅ.png" },
+  { name: "謌千ｸｾ謗ｲ遉ｺ譚ｿ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/謌千ｸｾ謗ｲ遉ｺ譚ｿ繝｢繝薙ぅ.png" },
+  { name: "蠢懈抄蝗｣髟ｷ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/蠢懈抄蝗｣髟ｷ繝｢繝薙ぅ.png" },
+  { name: "蟒贋ｸ九Λ繝ｳ繧ｦ繧ｧ繧､繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/蟒贋ｸ九Λ繝ｳ繧ｦ繧ｧ繧､繝｢繝薙ぅ.png" },
+  { name: "螻倶ｸ願・逕ｱ譎る俣繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/螻倶ｸ願・逕ｱ譎る俣繝｢繝薙ぅ.png" },
+  { name: "蟄ｦ邏壼ｧ泌藤繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/蟄ｦ邏壼ｧ泌藤繝｢繝薙ぅ.png" },
+  { name: "蝗ｳ譖ｸ蟋泌藤繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/蝗ｳ譖ｸ蟋泌藤繝｢繝薙ぅ.png" },
+  { name: "蛻ｶ譛阪い繝ｬ繝ｳ繧ｸ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/蛻ｶ譛阪い繝ｬ繝ｳ繧ｸ繝｢繝薙ぅ.png" },
+  { name: "菴楢ご逾ｭ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/菴楢ご逾ｭ繝｢繝薙ぅ.png" },
+  { name: "繧ゅ＠繝ｩ繝ｳ繧ｭ繝ｳ繧ｰ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂育塙/繧ゅ＠繝ｩ繝ｳ繧ｭ繝ｳ繧ｰ繝｢繝薙ぅ.png" },
 
-  { name: "図書室まったりモビィ", url: "assets/stickers/モビィ透過済女/図書室まったりモビィ.png" },
-  { name: "匂わせプリクラモビィ", url: "assets/stickers/モビィ透過済女/匂わせプリクラモビィ.png" },
-  { name: "ロッカー手紙モビィ", url: "assets/stickers/モビィ透過済女/ロッカー手紙モビィ.png" },
-  { name: "プリクラ拡散モビィ", url: "assets/stickers/モビィ透過済女/プリクラ拡散モビィ.png" },
-  { name: "ネイルこだわりモビィ", url: "assets/stickers/モビィ透過済女/ネイルこだわりモビィ.png" },
-  { name: "ストーリー撮影班モビィ", url: "assets/stickers/モビィ透過済女/ストーリー撮影班モビィ.png" },
-  { name: "ストーリー匂わせモビィ", url: "assets/stickers/モビィ透過済女/ストーリー匂わせモビィ.png" },
-  { name: "カップル自撮りモビィ", url: "assets/stickers/モビィ透過済女/カップル自撮りモビィ.png" },
-  { name: "放課後即レスモビィ", url: "assets/stickers/モビィ透過済女/放課後即レスモビィ.png" },
-  { name: "放課後こっそり通話モビィ", url: "assets/stickers/モビィ透過済女/放課後こっそり通話モビィ.png" },
-  { name: "帰り道デートモビィ", url: "assets/stickers/モビィ透過済女/帰り道デートモビィ.png" },
-  { name: "屋上ひみつ恋モビィ", url: "assets/stickers/モビィ透過済女/屋上ひみつ恋モビィ.png" },
-  { name: "昼休みお弁当会モビィ", url: "assets/stickers/モビィ透過済女/昼休みお弁当会モビィ.png" },
-  { name: "文化祭広報モビィ", url: "assets/stickers/モビィ透過済女/文化祭広報モビィ.png" },
-  { name: "購買前溜まり場モビィ", url: "assets/stickers/モビィ透過済女/購買前溜まり場モビィ.png" },
+  { name: "蝗ｳ譖ｸ螳､縺ｾ縺｣縺溘ｊ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/蝗ｳ譖ｸ螳､縺ｾ縺｣縺溘ｊ繝｢繝薙ぅ.png" },
+  { name: "蛹ゅｏ縺帙・繝ｪ繧ｯ繝ｩ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/蛹ゅｏ縺帙・繝ｪ繧ｯ繝ｩ繝｢繝薙ぅ.png" },
+  { name: "繝ｭ繝・き繝ｼ謇狗ｴ吶Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/繝ｭ繝・き繝ｼ謇狗ｴ吶Δ繝薙ぅ.png" },
+  { name: "繝励Μ繧ｯ繝ｩ諡｡謨｣繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/繝励Μ繧ｯ繝ｩ諡｡謨｣繝｢繝薙ぅ.png" },
+  { name: "繝阪う繝ｫ縺薙□繧上ｊ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/繝阪う繝ｫ縺薙□繧上ｊ繝｢繝薙ぅ.png" },
+  { name: "繧ｹ繝医・繝ｪ繝ｼ謦ｮ蠖ｱ迴ｭ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/繧ｹ繝医・繝ｪ繝ｼ謦ｮ蠖ｱ迴ｭ繝｢繝薙ぅ.png" },
+  { name: "繧ｹ繝医・繝ｪ繝ｼ蛹ゅｏ縺帙Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/繧ｹ繝医・繝ｪ繝ｼ蛹ゅｏ縺帙Δ繝薙ぅ.png" },
+  { name: "繧ｫ繝・・繝ｫ閾ｪ謦ｮ繧翫Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/繧ｫ繝・・繝ｫ閾ｪ謦ｮ繧翫Δ繝薙ぅ.png" },
+  { name: "謾ｾ隱ｲ蠕悟叉繝ｬ繧ｹ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/謾ｾ隱ｲ蠕悟叉繝ｬ繧ｹ繝｢繝薙ぅ.png" },
+  { name: "謾ｾ隱ｲ蠕後％縺｣縺昴ｊ騾夊ｩｱ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/謾ｾ隱ｲ蠕後％縺｣縺昴ｊ騾夊ｩｱ繝｢繝薙ぅ.png" },
+  { name: "蟶ｰ繧企％繝・・繝医Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/蟶ｰ繧企％繝・・繝医Δ繝薙ぅ.png" },
+  { name: "螻倶ｸ翫・縺ｿ縺､諱九Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/螻倶ｸ翫・縺ｿ縺､諱九Δ繝薙ぅ.png" },
+  { name: "譏ｼ莨代∩縺雁ｼ∝ｽ謎ｼ壹Δ繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/譏ｼ莨代∩縺雁ｼ∝ｽ謎ｼ壹Δ繝薙ぅ.png" },
+  { name: "譁・喧逾ｭ蠎・ｱ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/譁・喧逾ｭ蠎・ｱ繝｢繝薙ぅ.png" },
+  { name: "雉ｼ雋ｷ蜑肴ｺ懊∪繧雁ｴ繝｢繝薙ぅ", url: "assets/stickers/繝｢繝薙ぅ騾城℃貂亥･ｳ/雉ｼ雋ｷ蜑肴ｺ懊∪繧雁ｴ繝｢繝薙ぅ.png" },
 ];
 
 function showDesign() {
@@ -174,7 +173,6 @@ await editor.loadTemplate(templateSelect.value);
 btnClear?.addEventListener("click", () => editor.clearAll());
 btnUndo?.addEventListener("click", () => editor.undo?.());
 btnRedo?.addEventListener("click", () => editor.redo?.());
-btnDelete?.addEventListener("click", () => editor.deleteSelected?.());
 editor.setHistoryListener?.(({ canUndo, canRedo }) => {
   if (btnUndo) btnUndo.disabled = !canUndo;
   if (btnRedo) btnRedo.disabled = !canRedo;
@@ -388,7 +386,7 @@ btnPublish?.addEventListener("click", async () => {
     }
 
     let blob = await editor.exportPngBlob();
-    if (!blob) throw new Error("画像生成に失敗しました");
+    if (!blob) throw new Error("逕ｻ蜒冗函謌舌↓螟ｱ謨励＠縺ｾ縺励◆");
 
     blob = await addWatermarkToPngBlob(blob);
 
@@ -414,7 +412,7 @@ btnPublish?.addEventListener("click", async () => {
       template: templateSelect?.value || ""
     });
 
-    if (publishStatus) publishStatus.textContent = "投稿しました！ランキングに反映されます。";
+    if (publishStatus) publishStatus.textContent = "投稿しました。ランキングに反映されます。";
     if (titleInput) titleInput.value = "";
   } catch (e) {
     alert("投稿に失敗: " + e.message);
@@ -423,3 +421,4 @@ btnPublish?.addEventListener("click", async () => {
     btnPublish.disabled = false;
   }
 });
+

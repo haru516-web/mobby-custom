@@ -14,6 +14,7 @@
 }
 
 *{box-sizing:border-box}
+html, body{overscroll-behavior:contain}
 body{
   margin:0;
   font-family:var(--font-ja), "Hiragino Maru Gothic ProN","Yu Gothic","Meiryo","Noto Sans JP","Segoe UI",sans-serif;
@@ -54,6 +55,8 @@ body{
   box-shadow: 0 14px 30px rgba(122,84,58,.15);
 }
 .muted{color:var(--muted)}
+.deviceDesktop{display:inline}
+.deviceMobile{display:none}
 .badge{padding:6px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);font-size:12px;background:rgba(255,255,255,.6)}
 
 .btn{
@@ -113,6 +116,7 @@ body{
   overflow:hidden;
   background:rgba(255,255,255,.55);
   margin:12px 0;
+  touch-action:none;
 }
 canvas{display:block;width:100%;height:auto;touch-action:none}
 
@@ -184,6 +188,8 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   .input,.select,.btn{width:100%}
   .panelActions{width:100%}
   .panelActions .btn{flex:1}
+  .deviceDesktop{display:none}
+  .deviceMobile{display:inline}
 }
 @media (max-width: 420px){
   .assetGrid{grid-template-columns:repeat(2, minmax(0, 1fr))}

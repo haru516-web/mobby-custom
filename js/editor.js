@@ -731,17 +731,6 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     return true;
   }
 
-  function deleteSelected() {
-    if (!selectedId) return false;
-    const before = objects.length;
-    objects = objects.filter(v => v.id !== selectedId);
-    if (objects.length === before) return false;
-    selectedId = null;
-    draw();
-    pushHistory();
-    return true;
-  }
-
   templateSelect?.addEventListener("change", () => loadTemplate(templateSelect.value));
   window.addEventListener("resize", fitCanvas);
   history = [snapshot()];
@@ -763,7 +752,6 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     clearDraw,
     applyTextStyleToSelected,
     updateSelectedText,
-    deleteSelected,
     undo() {
       if (history.length <= 1) return false;
       const current = history.pop();
