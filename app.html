@@ -221,8 +221,8 @@
               <span id="profileRankBadge" class="rankBadge small hidden" aria-label="ランキング"></span>
             </div>
             <div class="profileCounts">
-              <span><strong id="profileFollowingCount">0</strong> フォロー中</span>
-              <span><strong id="profileFollowersCount">0</strong> フォロワー</span>
+              <button id="profileFollowingBtn" class="countBtn" type="button"><strong id="profileFollowingCount">0</strong> フォロー中</button>
+              <button id="profileFollowersBtn" class="countBtn" type="button"><strong id="profileFollowersCount">0</strong> フォロワー</button>
             </div>
           </div>
         </div>
@@ -236,7 +236,7 @@
         </div>
         <div id="profileStatus" class="muted"></div>
 
-        <div class="profileLists">
+        <div class="profileLists hidden">
           <div>
             <h3 class="profileListTitle">フォロー中</h3>
             <div id="followingList" class="userList"></div>
@@ -262,6 +262,14 @@
     <div class="modalInner">
       <button id="profileModalClose" class="iconBtn" type="button">×</button>
       <div id="profileModalBody"></div>
+    </div>
+  </dialog>
+
+  <dialog id="followListModal" class="modal">
+    <div class="modalInner">
+      <button id="followListModalClose" class="iconBtn" type="button">×</button>
+      <h3 id="followListTitle" style="margin:0 0 10px;"></h3>
+      <div id="followListBody" class="userList"></div>
     </div>
   </dialog>
 

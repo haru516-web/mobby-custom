@@ -321,6 +321,16 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 .profileAvatar{width:64px;height:64px}
 .profileMeta{display:flex;flex-direction:column;gap:6px}
 .profileCounts{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
+.countBtn{
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.65);
+  color:var(--text);
+  padding:6px 10px;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:13px;
+}
+.countBtn:hover{background:rgba(255,255,255,.85)}
 .profileLists{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:14px}
 .profileListTitle{margin:0 0 6px;font-size:16px}
 .userList{display:grid;gap:10px}
@@ -371,6 +381,15 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   border:1px dashed var(--border);
   background:rgba(255,255,255,.6);
   white-space:normal;
+}
+.previewMedia{
+  width:360px;
+  max-width:45vw;
+  aspect-ratio:1/1;
+  height:auto;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.12);
+  display:block;
 }
 @media (max-width: 900px){
   .topbar{flex-wrap:wrap;gap:10px}

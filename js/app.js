@@ -88,6 +88,8 @@ const profileSave = document.getElementById("profileSave");
 const profileStatus = document.getElementById("profileStatus");
 const profileFollowingCount = document.getElementById("profileFollowingCount");
 const profileFollowersCount = document.getElementById("profileFollowersCount");
+const profileFollowingBtn = document.getElementById("profileFollowingBtn");
+const profileFollowersBtn = document.getElementById("profileFollowersBtn");
 const profileRankBadge = document.getElementById("profileRankBadge");
 const followingList = document.getElementById("followingList");
 const followersList = document.getElementById("followersList");
@@ -98,6 +100,10 @@ const modalClose = document.getElementById("modalClose");
 const profileModal = document.getElementById("profileModal");
 const profileModalBody = document.getElementById("profileModalBody");
 const profileModalClose = document.getElementById("profileModalClose");
+const followListModal = document.getElementById("followListModal");
+const followListModalClose = document.getElementById("followListModalClose");
+const followListTitle = document.getElementById("followListTitle");
+const followListBody = document.getElementById("followListBody");
 const nicknameModal = document.getElementById("nicknameModal");
 const nicknameInput = document.getElementById("nicknameInput");
 const nicknameSave = document.getElementById("nicknameSave");
@@ -121,6 +127,14 @@ profileModal?.addEventListener("click", (e) => {
     e.clientX >= rect.left && e.clientX <= rect.right &&
     e.clientY >= rect.top && e.clientY <= rect.bottom;
   if (!inside) profileModal.close();
+});
+followListModalClose?.addEventListener("click", () => followListModal.close());
+followListModal?.addEventListener("click", (e) => {
+  const rect = followListModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) followListModal.close();
 });
 
 // ---- assets list ----
@@ -651,6 +665,20 @@ async function renderUserList(type, container) {
   }
 }
 
+async function openFollowList(type) {
+  if (!followListModal || !followListTitle || !followListBody) return;
+  if (!uid) {
+    followListTitle.textContent = "";
+    followListBody.innerHTML = `<div class="muted">ログインが必要です。</div>`;
+    followListModal.showModal();
+    return;
+  }
+  followListTitle.textContent = type === "following" ? "フォロー中" : "フォロワー";
+  followListBody.innerHTML = `<div class="muted">読み込み中...</div>`;
+  followListModal.showModal();
+  await renderUserList(type, followListBody);
+}
+
 async function loadProfileView() {
   if (!viewProfile || viewProfile.classList.contains("hidden")) return;
   if (!uid) {
@@ -664,8 +692,6 @@ async function loadProfileView() {
       profileRankBadge.classList.remove("rank1", "rank2", "rank3");
     }
     setProfileUiEnabled(false);
-    if (followingList) followingList.innerHTML = "";
-    if (followersList) followersList.innerHTML = "";
     if (profileFollowingCount) profileFollowingCount.textContent = "0";
     if (profileFollowersCount) profileFollowersCount.textContent = "0";
     return;
@@ -689,8 +715,6 @@ async function loadProfileView() {
   await updateProfileRankBadge(uid);
 
   await refreshFollowingSet();
-  await renderUserList("following", followingList);
-  await renderUserList("followers", followersList);
 
   if (profileStatus) profileStatus.textContent = "";
 }
@@ -721,6 +745,13 @@ onAuthStateChanged(auth, async (user) => {
   if (user && (!profile?.displayName || !profile.displayName.trim())) {
     openNicknameModal("");
   }
+});
+
+profileFollowingBtn?.addEventListener("click", async () => {
+  await openFollowList("following");
+});
+profileFollowersBtn?.addEventListener("click", async () => {
+  await openFollowList("followers");
 });
 
 btnLogin?.addEventListener("click", async () => {
