@@ -1,9 +1,10 @@
-﻿import { ensureAnonLogin, db, storage } from "./firebase.js";
+﻿import { db, storage, auth, googleProvider } from "./firebase.js";
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
@@ -67,6 +68,9 @@ const galleryStatus = document.getElementById("galleryStatus");
 const modal = document.getElementById("modal");
 const modalBody = document.getElementById("modalBody");
 const modalClose = document.getElementById("modalClose");
+const btnLogin = document.getElementById("btnLogin");
+const btnLogout = document.getElementById("btnLogout");
+const userAvatar = document.getElementById("userAvatar");
 
 modalClose?.addEventListener("click", () => modal.close());
 modal?.addEventListener("click", (e) => {
@@ -78,7 +82,42 @@ modal?.addEventListener("click", (e) => {
 });
 
 // ---- assets list ----
-const STICKERS = [\n  { name: "heart", url: "assets/stickers/heart.png" },\n  { name: "Logo", url: "assets/stickers/Logo.png" },\n  { name: "star", url: "assets/stickers/star.png" },\n  { name: "カップル自撮りモビィ", url: "assets/stickers/モビィ透過済女/カップル自撮りモビィ.png" },\n  { name: "ストーリー撮影班モビィ", url: "assets/stickers/モビィ透過済女/ストーリー撮影班モビィ.png" },\n  { name: "ストーリー匂わせモビィ", url: "assets/stickers/モビィ透過済女/ストーリー匂わせモビィ.png" },\n  { name: "ネイルこだわりモビィ", url: "assets/stickers/モビィ透過済女/ネイルこだわりモビィ.png" },\n  { name: "プリクラ拡散モビィ", url: "assets/stickers/モビィ透過済女/プリクラ拡散モビィ.png" },\n  { name: "ロッカー手紙モビィ", url: "assets/stickers/モビィ透過済女/ロッカー手紙モビィ.png" },\n  { name: "屋上ひみつ恋モビィ", url: "assets/stickers/モビィ透過済女/屋上ひみつ恋モビィ.png" },\n  { name: "帰り道デートモビィ", url: "assets/stickers/モビィ透過済女/帰り道デートモビィ.png" },\n  { name: "購買前溜まり場モビィ", url: "assets/stickers/モビィ透過済女/購買前溜まり場モビィ.png" },\n  { name: "図書室まったりモビィ", url: "assets/stickers/モビィ透過済女/図書室まったりモビィ.png" },\n  { name: "昼休みお弁当会モビィ", url: "assets/stickers/モビィ透過済女/昼休みお弁当会モビィ.png" },\n  { name: "匂わせプリクラモビィ", url: "assets/stickers/モビィ透過済女/匂わせプリクラモビィ.png" },\n  { name: "文化祭広報モビィ", url: "assets/stickers/モビィ透過済女/文化祭広報モビィ.png" },\n  { name: "放課後こっそり通話モビィ", url: "assets/stickers/モビィ透過済女/放課後こっそり通話モビィ.png" },\n  { name: "放課後即レスモビィ", url: "assets/stickers/モビィ透過済女/放課後即レスモビィ.png" },\n  { name: "もしランキングモビィ", url: "assets/stickers/モビィ透過済男/もしランキングモビィ.png" },\n  { name: "応援団長モビィ", url: "assets/stickers/モビィ透過済男/応援団長モビィ.png" },\n  { name: "屋上自由時間モビィ", url: "assets/stickers/モビィ透過済男/屋上自由時間モビィ.png" },\n  { name: "学級委員モビィ", url: "assets/stickers/モビィ透過済男/学級委員モビィ.png" },\n  { name: "教科書落書きモビィ", url: "assets/stickers/モビィ透過済男/教科書落書きモビィ.png" },\n  { name: "自習室モビィ", url: "assets/stickers/モビィ透過済男/自習室モビィ.png" },\n  { name: "図書委員モビィ", url: "assets/stickers/モビィ透過済男/図書委員モビィ.png" },\n  { name: "制服アレンジモビィ", url: "assets/stickers/モビィ透過済男/制服アレンジモビィ.png" },\n  { name: "成績掲示板モビィ", url: "assets/stickers/モビィ透過済男/成績掲示板モビィ.png" },\n  { name: "体育祭モビィ", url: "assets/stickers/モビィ透過済男/体育祭モビィ.png" },\n  { name: "舞台袖実行委員モビィ", url: "assets/stickers/モビィ透過済男/舞台袖実行委員モビィ.png" },\n  { name: "部室たまり場モビィ", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },\n  { name: "文化祭センターステージモビィ", url: "assets/stickers/モビィ透過済男/文化祭センターステージモビィ.png" },\n  { name: "理科室研究モビィ", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },\n  { name: "裏垢拡散モビィ", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },\n  { name: "廊下ランウェイモビィ", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },\n];
+const STICKERS = [
+  { name: "heart", url: "assets/stickers/heart.png" },
+  { name: "Logo", url: "assets/stickers/Logo.png" },
+  { name: "star", url: "assets/stickers/star.png" },
+  { name: "カップル自撮りモビィ", url: "assets/stickers/モビィ透過済女/カップル自撮りモビィ.png" },
+  { name: "ストーリー撮影班モビィ", url: "assets/stickers/モビィ透過済女/ストーリー撮影班モビィ.png" },
+  { name: "ストーリー匂わせモビィ", url: "assets/stickers/モビィ透過済女/ストーリー匂わせモビィ.png" },
+  { name: "ネイルこだわりモビィ", url: "assets/stickers/モビィ透過済女/ネイルこだわりモビィ.png" },
+  { name: "プリクラ拡散モビィ", url: "assets/stickers/モビィ透過済女/プリクラ拡散モビィ.png" },
+  { name: "ロッカー手紙モビィ", url: "assets/stickers/モビィ透過済女/ロッカー手紙モビィ.png" },
+  { name: "屋上ひみつ恋モビィ", url: "assets/stickers/モビィ透過済女/屋上ひみつ恋モビィ.png" },
+  { name: "帰り道デートモビィ", url: "assets/stickers/モビィ透過済女/帰り道デートモビィ.png" },
+  { name: "購買前溜まり場モビィ", url: "assets/stickers/モビィ透過済女/購買前溜まり場モビィ.png" },
+  { name: "図書室まったりモビィ", url: "assets/stickers/モビィ透過済女/図書室まったりモビィ.png" },
+  { name: "昼休みお弁当会モビィ", url: "assets/stickers/モビィ透過済女/昼休みお弁当会モビィ.png" },
+  { name: "匂わせプリクラモビィ", url: "assets/stickers/モビィ透過済女/匂わせプリクラモビィ.png" },
+  { name: "文化祭広報モビィ", url: "assets/stickers/モビィ透過済女/文化祭広報モビィ.png" },
+  { name: "放課後こっそり通話モビィ", url: "assets/stickers/モビィ透過済女/放課後こっそり通話モビィ.png" },
+  { name: "放課後即レスモビィ", url: "assets/stickers/モビィ透過済女/放課後即レスモビィ.png" },
+  { name: "もしランキングモビィ", url: "assets/stickers/モビィ透過済男/もしランキングモビィ.png" },
+  { name: "応援団長モビィ", url: "assets/stickers/モビィ透過済男/応援団長モビィ.png" },
+  { name: "屋上自由時間モビィ", url: "assets/stickers/モビィ透過済男/屋上自由時間モビィ.png" },
+  { name: "学級委員モビィ", url: "assets/stickers/モビィ透過済男/学級委員モビィ.png" },
+  { name: "教科書落書きモビィ", url: "assets/stickers/モビィ透過済男/教科書落書きモビィ.png" },
+  { name: "自習室モビィ", url: "assets/stickers/モビィ透過済男/自習室モビィ.png" },
+  { name: "図書委員モビィ", url: "assets/stickers/モビィ透過済男/図書委員モビィ.png" },
+  { name: "制服アレンジモビィ", url: "assets/stickers/モビィ透過済男/制服アレンジモビィ.png" },
+  { name: "成績掲示板モビィ", url: "assets/stickers/モビィ透過済男/成績掲示板モビィ.png" },
+  { name: "体育祭モビィ", url: "assets/stickers/モビィ透過済男/体育祭モビィ.png" },
+  { name: "舞台袖実行委員モビィ", url: "assets/stickers/モビィ透過済男/舞台袖実行委員モビィ.png" },
+  { name: "部室たまり場モビィ", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },
+  { name: "文化祭センターステージモビィ", url: "assets/stickers/モビィ透過済男/文化祭センターステージモビィ.png" },
+  { name: "理科室研究モビィ", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },
+  { name: "裏垢拡散モビィ", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
+  { name: "廊下ランウェイモビィ", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },
+];
 
 function showDesign() {
   tabDesign?.classList.add("active");
@@ -307,6 +346,7 @@ setAdjustPanel("text");
 
 let gallery = null;
 let uid = "";
+let galleryUid = "";
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
@@ -317,29 +357,95 @@ btnRefresh?.addEventListener("click", async () => {
   await gallery?.fetchTop?.();
 });
 
-try {
-  const user = await ensureAnonLogin();
-  uid = user.uid;
-  if (userBadge) userBadge.textContent = `uid: ${uid.slice(0, 6)}...`;
+function syncAuthUi(user) {
+  if (userBadge) {
+    userBadge.textContent = user ? `uid: ${user.uid.slice(0, 6)}...` : "未ログイン";
+  }
+  btnLogin?.classList.toggle("hidden", !!user);
+  btnLogout?.classList.toggle("hidden", !user);
+  if (userAvatar) {
+    const avatarUrl = user?.photoURL || "";
+    if (avatarUrl) {
+      userAvatar.src = avatarUrl;
+      userAvatar.alt = user?.displayName ? `${user.displayName}のアイコン` : "Googleアカウントのアイコン";
+      userAvatar.title = user?.displayName || user?.email || "";
+      userAvatar.classList.remove("hidden");
+    } else {
+      userAvatar.removeAttribute("src");
+      userAvatar.removeAttribute("title");
+      userAvatar.classList.add("hidden");
+    }
+  }
+}
 
+syncAuthUi(null);
+
+function ensureGallery(nextUid) {
+  if (gallery && galleryUid === nextUid) return;
+  galleryUid = nextUid;
   gallery = createGallery({
-    db, uid,
+    db,
+    uid: nextUid,
     gridEl: galleryGrid,
     statusEl: galleryStatus,
     modalEl: modal,
     modalBodyEl: modalBody
   });
-  if (viewGallery && !viewGallery.classList.contains("hidden")) {
-    await gallery.fetchTop();
-  }
-} catch (e) {
-  if (userBadge) userBadge.textContent = "login failed";
-  if (galleryStatus) galleryStatus.textContent = "ログインに失敗しました。再読み込みしてください。";
 }
+
+onAuthStateChanged(auth, async (user) => {
+  uid = user?.uid || "";
+  syncAuthUi(user);
+  ensureGallery(uid);
+  if (viewGallery && !viewGallery.classList.contains("hidden")) {
+    await gallery?.fetchTop?.();
+  }
+});
+
+btnLogin?.addEventListener("click", async () => {
+  try {
+    if (btnLogin) btnLogin.disabled = true;
+    if (userBadge) userBadge.textContent = "ログイン中...";
+    await signInWithPopup(auth, googleProvider);
+  } catch (e) {
+    if (e?.code === "auth/operation-not-allowed") {
+      alert("Googleログインが無効です。Firebaseコンソールで Authentication > ログイン方法 > Google を有効化してください。");
+    } else if (e?.code === "auth/unauthorized-domain") {
+      alert("このドメインは許可されていません。Firebaseコンソールの Authentication > 設定 > 承認済みドメイン に追加してください。");
+    } else if (e?.code === "auth/popup-blocked") {
+      alert("ポップアップがブロックされました。許可して再試行してください。");
+    } else if (e?.code === "auth/popup-closed-by-user") {
+      // no-op
+    } else {
+      alert("ログインに失敗: " + e.message);
+    }
+    syncAuthUi(auth.currentUser);
+  } finally {
+    if (btnLogin) btnLogin.disabled = false;
+  }
+});
+
+btnLogout?.addEventListener("click", async () => {
+  try {
+    if (btnLogout) btnLogout.disabled = true;
+    if (userBadge) userBadge.textContent = "ログアウト中...";
+    await signOut(auth);
+    syncAuthUi(null);
+  } catch (e) {
+    alert("ログアウトに失敗: " + e.message);
+    syncAuthUi(auth.currentUser);
+  } finally {
+    if (btnLogout) btnLogout.disabled = false;
+  }
+});
 
 // ---- publish ----
 btnPublish?.addEventListener("click", async () => {
   try {
+    if (!uid) {
+      alert("ログインが必要");
+      return;
+    }
     btnPublish.disabled = true;
     if (publishStatus) publishStatus.textContent = "画像を書き出し中...";
 
@@ -353,7 +459,7 @@ btnPublish?.addEventListener("click", async () => {
     }
 
     let blob = await editor.exportPngBlob();
-    if (!blob) throw new Error("逕ｻ蜒冗函謌舌↓螟ｱ謨励＠縺ｾ縺励◆");
+    if (!blob) throw new Error("画像の書き出しに失敗しました");
 
     blob = await addWatermarkToPngBlob(blob);
 
@@ -388,5 +494,3 @@ btnPublish?.addEventListener("click", async () => {
     btnPublish.disabled = false;
   }
 });
-
-

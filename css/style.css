@@ -58,6 +58,14 @@ body{
 .deviceDesktop{display:inline}
 .deviceMobile{display:none}
 .badge{padding:6px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);font-size:12px;background:rgba(255,255,255,.6)}
+.avatar{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  object-fit:cover;
+  background:rgba(255,255,255,.6);
+}
 
 .btn{
   border:1px solid var(--border);
