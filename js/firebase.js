@@ -1,10 +1,9 @@
 // js/firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-// あなたの設定（貼ってくれたやつ）
+// Firebase config (mobbyfashion)
 const firebaseConfig = {
   apiKey: "AIzaSyC9p0CGc65dim9DwxNN6Khvai3ZjV4p5FU",
   authDomain: "mobbyfashion.firebaseapp.com",
@@ -17,21 +16,18 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-
-// ✅ ここが必要（app.jsが import してる export）
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 
-export async function ensureAnonLogin() {
-  return new Promise((resolve, reject) => {
-    onAuthStateChanged(auth, async (user) => {
-      try {
-        if (user) return resolve(user);
-        const cred = await signInAnonymously(auth);
-        resolve(cred.user);
-      } catch (e) {
-        reject(e);
-      }
-    });
-  });
+export function watchAuth(cb) {
+  return onAuthStateChanged(auth, cb);
+}
+
+export async function loginWithGoogle() {
+  const provider = new GoogleAuthProvider();
+  const cred = await signInWithPopup(auth, provider);
+  return cred.user;
+}
+
+export async function logout() {
+  await signOut(auth);
 }

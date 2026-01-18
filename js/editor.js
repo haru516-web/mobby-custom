@@ -3,6 +3,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
 
   let templateImg = new Image();
+  let templateUrl = "";
   let objects = []; // {type:'img'|'text'|'path', ...}
   let selectedId = null;
   let drag = null;
@@ -105,6 +106,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   }
 
   function loadTemplate(url) {
+    templateUrl = url || "";
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
@@ -123,6 +125,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
         type: "img",
         id,
         img,
+        src: assetUrl,
         name,
         x: canvas.width / 2,
         y: canvas.height / 2,
@@ -170,6 +173,147 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     selectedId = null;
     draw();
     pushHistory();
+  }
+
+  function getState() {
+    return {
+      template: templateUrl || "",
+      objects: objects.map((o) => {
+        if (o.type === "img") {
+          return {
+            type: "img",
+            id: o.id,
+            src: o.src || "",
+            name: o.name,
+            x: o.x,
+            y: o.y,
+            s: o.s,
+            r: o.r,
+            w: o.w,
+            h: o.h
+          };
+        }
+        if (o.type === "text") {
+          return {
+            type: "text",
+            id: o.id,
+            text: o.text,
+            fontFamily: o.fontFamily,
+            size: o.size,
+            color: o.color,
+            x: o.x,
+            y: o.y,
+            s: o.s,
+            r: o.r,
+            effect: o.effect,
+            effectColor: o.effectColor,
+            effectBlur: o.effectBlur,
+            strokeColor: o.strokeColor,
+            strokeWidth: o.strokeWidth
+          };
+        }
+        if (o.type === "path") {
+          return {
+            type: "path",
+            id: o.id,
+            points: o.points.map((p) => ({ x: p.x, y: p.y })),
+            color: o.color,
+            size: o.size,
+            effect: o.effect,
+            effectColor: o.effectColor,
+            effectBlur: o.effectBlur,
+            strokeColor: o.strokeColor,
+            strokeWidth: o.strokeWidth
+          };
+        }
+        return { ...o };
+      })
+    };
+  }
+
+  async function loadState(state = {}) {
+    const template = state.template || "";
+    if (template) {
+      await loadTemplate(template);
+    } else {
+      templateUrl = "";
+      templateImg = new Image();
+    }
+
+    const list = Array.isArray(state.objects) ? state.objects : [];
+    const next = [];
+    const imagePromises = [];
+
+    for (const o of list) {
+      if (o.type === "img") {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        const p = new Promise((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+        });
+        img.src = o.src || "";
+        imagePromises.push(p);
+        next.push({
+          type: "img",
+          id: o.id || crypto.randomUUID(),
+          img,
+          src: o.src || "",
+          name: o.name,
+          x: Number(o.x || 0),
+          y: Number(o.y || 0),
+          s: Number(o.s || 1),
+          r: Number(o.r || 0),
+          w: Number(o.w || img.width || 0),
+          h: Number(o.h || img.height || 0)
+        });
+        continue;
+      }
+      if (o.type === "text") {
+        next.push({
+          type: "text",
+          id: o.id || crypto.randomUUID(),
+          text: String(o.text || ""),
+          fontFamily: o.fontFamily || "Noto Sans JP",
+          size: Number(o.size || 36),
+          color: o.color || "#ffffff",
+          x: Number(o.x || 0),
+          y: Number(o.y || 0),
+          s: Number(o.s || 1),
+          r: Number(o.r || 0),
+          effect: o.effect || "none",
+          effectColor: o.effectColor || "#00f5ff",
+          effectBlur: Number(o.effectBlur || 0),
+          strokeColor: o.strokeColor || "#000000",
+          strokeWidth: Number(o.strokeWidth || 0)
+        });
+        continue;
+      }
+      if (o.type === "path") {
+        next.push({
+          type: "path",
+          id: o.id || crypto.randomUUID(),
+          points: Array.isArray(o.points) ? o.points.map((p) => ({ x: p.x, y: p.y })) : [],
+          color: o.color || "#3a2f26",
+          size: Number(o.size || 6),
+          effect: o.effect || "none",
+          effectColor: o.effectColor || "#00f5ff",
+          effectBlur: Number(o.effectBlur || 0),
+          strokeColor: o.strokeColor || "#000000",
+          strokeWidth: Number(o.strokeWidth || 0)
+        });
+      } 
+    }
+
+    if (imagePromises.length) {
+      await Promise.all(imagePromises);
+    }
+    objects = next;
+    selectedId = null;
+    draw();
+    history = [snapshot()];
+    redoStack = [];
+    notifyHistory();
   }
 
   function hitTest(px, py) {
@@ -237,9 +381,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     const dx = px - cx;
     const dy = py - cy;
     return dx * dx + dy * dy;
-  }
-
-  function sampleAlongLine(ax, ay, bx, by, spacing) {
+  }  function sampleAlongLine(ax, ay, bx, by, spacing) {
     const dx = bx - ax;
     const dy = by - ay;
     const dist = Math.hypot(dx, dy);
@@ -694,6 +836,8 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     clearDraw,
     applyTextStyleToSelected,
     updateSelectedText,
+    getState,
+    loadState,
     undo() {
       if (history.length <= 1) return false;
       const current = history.pop();

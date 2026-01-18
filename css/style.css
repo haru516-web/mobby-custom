@@ -152,6 +152,25 @@ canvas{display:block;width:100%;height:auto}
 .workActions{display:flex;gap:10px;margin-top:10px}
 .smallBtn{flex:1}
 
+.menuWrap{position:relative}
+.menuPanel{
+  position:absolute;
+  right:0;
+  top:100%;
+  margin-top:8px;
+  background:rgba(255,255,255,.95);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:8px;
+  min-width:220px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  z-index:20;
+  box-shadow:0 10px 24px rgba(122,84,58,.18);
+}
+.menuItem{width:100%;text-align:left}
+
 .modal{border:none;background:transparent}
 .modal::backdrop{background:rgba(85,60,45,.30)}
 .modalInner{

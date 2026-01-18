@@ -1,9 +1,8 @@
-import { ensureAnonLogin, db, storage } from "./firebase.js";
+import { db, watchAuth, loginWithGoogle, logout } from "./firebase.js";
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
@@ -11,6 +10,8 @@ const viewDesign = document.getElementById("viewDesign");
 const viewGallery = document.getElementById("viewGallery");
 
 const userBadge = document.getElementById("userBadge");
+const btnLogin = document.getElementById("btnLogin");
+const btnLogout = document.getElementById("btnLogout");
 
 const canvas = document.getElementById("designCanvas");
 const templateSelect = document.getElementById("templateSelect");
@@ -61,6 +62,8 @@ const toolEraser = document.getElementById("toolEraser");
 const publishStatus = document.getElementById("publishStatus");
 
 const btnRefresh = document.getElementById("btnRefresh");
+const btnRankFilter = document.getElementById("btnRankFilter");
+const rankFilterMenu = document.getElementById("rankFilterMenu");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
 
@@ -164,11 +167,67 @@ async function addWatermarkToPngBlob(pngBlob, watermarkUrl = WATERMARK_URL) {
   return resultBlob;
 }
 
+function createThumbDataUrl(sourceCanvas, size = 320) {
+  const out = document.createElement("canvas");
+  out.width = size;
+  out.height = size;
+  const outCtx = out.getContext("2d");
+  outCtx.drawImage(sourceCanvas, 0, 0, size, size);
+  return out.toDataURL("image/jpeg", 0.82);
+}
+
 // ---- main ----
 const editor = createEditor({ canvas, templateSelect, assetGrid });
 editor.setAssets(STICKERS);
 editor.fitCanvas();
 await editor.loadTemplate(templateSelect.value);
+
+function setEditEnabled(enabled) {
+  const controls = [
+    templateSelect,
+    btnClear,
+    btnPublish,
+    btnAddText,
+    btnApplyText,
+    textInput,
+    textSize,
+    textFont,
+    textColor,
+    neonPreset,
+    textAngle,
+    textEffect,
+    textEffectColor,
+    textEffectBlur,
+    textStrokeColor,
+    textStrokeWidth,
+    panelTextBtn,
+    panelDrawBtn,
+    panelStickerBtn,
+    btnClearDraw,
+    penColor,
+    penSize,
+    drawEffect,
+    drawEffectColor,
+    drawEffectBlur,
+    drawStrokeColor,
+    drawStrokeWidth,
+    toolPen,
+    toolEraser
+  ];
+  for (const el of controls) {
+    if (!el) continue;
+    el.disabled = !enabled;
+  }
+  if (assetGrid) {
+    const buttons = assetGrid.querySelectorAll("button");
+    buttons.forEach((btn) => { btn.disabled = !enabled; });
+  }
+  if (canvas) {
+    canvas.style.pointerEvents = enabled ? "auto" : "none";
+  }
+}
+
+setEditEnabled(false);
 
 btnClear?.addEventListener("click", () => editor.clearAll());
 btnUndo?.addEventListener("click", () => editor.undo?.());
@@ -340,40 +399,128 @@ setAdjustPanel("text");
 
 let gallery = null;
 let uid = "";
+let currentRankFilter = "all";
+
+function updateRankFilterMenu() {
+  if (!gallery || !rankFilterMenu || !btnRankFilter) return;
+  const options = gallery.getFilterOptions?.() || ["all"];
+  if (!options.includes(currentRankFilter)) currentRankFilter = "all";
+
+  rankFilterMenu.innerHTML = "";
+  for (const opt of options) {
+    const label = opt === "all" ? "全体ランキング" : opt;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn menuItem";
+    if (opt === currentRankFilter) btn.classList.add("active");
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      currentRankFilter = opt;
+      btnRankFilter.textContent = `${label} ▾`;
+      rankFilterMenu.classList.add("hidden");
+      gallery.setFilter?.(currentRankFilter);
+      updateRankFilterMenu();
+    });
+    rankFilterMenu.appendChild(btn);
+  }
+  const currentLabel = currentRankFilter === "all" ? "全体ランキング" : currentRankFilter;
+  btnRankFilter.textContent = `${currentLabel} ▾`;
+  gallery.setFilter?.(currentRankFilter);
+}
+
+async function refreshGallery() {
+  await gallery?.fetchTop?.();
+  updateRankFilterMenu();
+}
+
+btnRankFilter?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  rankFilterMenu?.classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  if (!rankFilterMenu || !btnRankFilter) return;
+  if (rankFilterMenu.classList.contains("hidden")) return;
+  if (rankFilterMenu.contains(e.target) || btnRankFilter.contains(e.target)) return;
+  rankFilterMenu.classList.add("hidden");
+});
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
   showGallery();
-  await gallery?.fetchTop?.();
+  await refreshGallery();
 });
 btnRefresh?.addEventListener("click", async () => {
-  await gallery?.fetchTop?.();
+  await refreshGallery();
 });
 
-try {
-  const user = await ensureAnonLogin();
-  uid = user.uid;
-  if (userBadge) userBadge.textContent = `uid: ${uid.slice(0, 6)}...`;
+// NOTE: ensureAnonLogin is disabled for now (Step2: login UI only)
+// try {
+//   const user = await ensureAnonLogin();
+//   uid = user.uid;
+//   if (userBadge) userBadge.textContent = `uid: ${uid.slice(0, 6)}...`;
+//
+//   gallery = createGallery({
+//     db, uid,
+//     gridEl: galleryGrid,
+//     statusEl: galleryStatus,
+//     modalEl: modal,
+//     modalBodyEl: modalBody
+//   });
+//   if (viewGallery && !viewGallery.classList.contains("hidden")) {
+//     await gallery.fetchTop();
+//   }
+// } catch (e) {
+//   if (userBadge) userBadge.textContent = "login failed";
+//   if (galleryStatus) galleryStatus.textContent = "ログインに失敗しました。再読み込みしてください。";
+// }
 
+watchAuth((user) => {
+  if (user) {
+    uid = user.uid;
+    if (userBadge) userBadge.textContent = `uid: ${uid.slice(0, 6)}...`;
+    setEditEnabled(true);
+  } else {
+    uid = "";
+    if (userBadge) userBadge.textContent = "閲覧モード";
+    setEditEnabled(false);
+  }
   gallery = createGallery({
-    db, uid,
+    db,
+    uid,
     gridEl: galleryGrid,
     statusEl: galleryStatus,
     modalEl: modal,
     modalBodyEl: modalBody
   });
   if (viewGallery && !viewGallery.classList.contains("hidden")) {
-    await gallery.fetchTop();
+    refreshGallery();
   }
-} catch (e) {
-  if (userBadge) userBadge.textContent = "login failed";
-  if (galleryStatus) galleryStatus.textContent = "ログインに失敗しました。再読み込みしてください。";
-}
+});
+
+btnLogin?.addEventListener("click", async () => {
+  try {
+    await loginWithGoogle();
+  } catch (e) {
+    alert("ログインに失敗しました: " + e.message);
+  }
+});
+
+btnLogout?.addEventListener("click", async () => {
+  try {
+    await logout();
+  } catch (e) {
+    alert("ログアウトに失敗しました: " + e.message);
+  }
+});
 
 // ---- publish ----
 btnPublish?.addEventListener("click", async () => {
   try {
     btnPublish.disabled = true;
+    if (!uid) {
+      if (publishStatus) publishStatus.textContent = "ログインが必要";
+      return;
+    }
     if (publishStatus) publishStatus.textContent = "画像を書き出し中...";
 
     const usedNames = editor.getUsedAssetNames();
@@ -385,30 +532,19 @@ btnPublish?.addEventListener("click", async () => {
       return;
     }
 
-    let blob = await editor.exportPngBlob();
-    if (!blob) throw new Error("画像生成に失敗しました");
-
-    blob = await addWatermarkToPngBlob(blob);
-
-    if (publishStatus) publishStatus.textContent = "アップロード中...";
-
-    const id = crypto.randomUUID();
-    const path = `designs/${uid}/${id}.png`;
-    const fileRef = ref(storage, path);
-
-    await uploadBytes(fileRef, blob, { contentType: "image/png" });
-    const imageUrl = await getDownloadURL(fileRef);
+    const state = editor.getState();
+    const thumb = createThumbDataUrl(canvas, 320);
 
     if (publishStatus) publishStatus.textContent = "投稿登録中...";
 
     const designsCol = collection(db, "designs");
     await addDoc(designsCol, {
       title: (titleInput?.value || "").trim(),
-      imageUrl,
-      storagePath: path,
       uid,
       likes: 0,
       createdAt: serverTimestamp(),
+      state,
+      thumb,
       template: templateSelect?.value || ""
     });
 
@@ -418,6 +554,6 @@ btnPublish?.addEventListener("click", async () => {
     alert("投稿に失敗: " + e.message);
     if (publishStatus) publishStatus.textContent = "";
   } finally {
-    btnPublish.disabled = false;
+    if (btnPublish) btnPublish.disabled = !uid;
   }
 });
