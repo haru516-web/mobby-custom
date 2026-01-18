@@ -65,16 +65,14 @@ const toolEraser = document.getElementById("toolEraser");
 
 const publishStatus = document.getElementById("publishStatus");
 
-async function createThumbDataUrl(pngBlob, size = 320) {
-  const base = await createImageBitmap(pngBlob);
+async function createThumbDataUrl(sourceCanvas, size = 320) {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, size, size);
-  ctx.drawImage(base, 0, 0, size, size);
-  base.close?.();
+  ctx.drawImage(sourceCanvas, 0, 0, size, size);
   return canvas.toDataURL("image/jpeg", 0.8);
 }
 const btnRefresh = document.getElementById("btnRefresh");
@@ -826,8 +824,7 @@ btnPublish?.addEventListener("click", async () => {
     if (!blob) throw new Error("画像の書き出しに失敗しました");
 
     if (publishStatus) publishStatus.textContent = "サムネ生成中...";
-
-    const thumb = await createThumbDataUrl(blob, 320);
+    const thumb = await createThumbDataUrl(canvas, 320);
     const state = editor.getState?.() || {};
 
     if (publishStatus) publishStatus.textContent = "投稿登録中...";

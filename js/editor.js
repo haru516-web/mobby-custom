@@ -695,6 +695,16 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     if (e.key.toLowerCase() === "e") { o.r += 0.08; draw(); pushHistory(); }
   });
 
+  function dataUrlToBlob(dataUrl) {
+    const [meta, encoded] = dataUrl.split(",");
+    const mime = (meta.match(/data:([^;]+)/) || [])[1] || "image/png";
+    const binary = atob(encoded);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+
   async function exportPngBlob(options = {}) {
     const hideUi = !!options.hideUi;
     const prevSelectedId = selectedId;
@@ -702,7 +712,11 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
       selectedId = null;
       draw();
     }
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1.0));
+    let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1.0));
+    if (!blob) {
+      const dataUrl = canvas.toDataURL("image/png");
+      blob = dataUrlToBlob(dataUrl);
+    }
     if (hideUi) {
       selectedId = prevSelectedId;
       draw();

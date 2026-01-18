@@ -59,16 +59,14 @@ const toolEraser = document.getElementById("toolEraser");
 
 const publishStatus = document.getElementById("publishStatus");
 
-async function createThumbDataUrl(pngBlob, size = 320) {
-  const base = await createImageBitmap(pngBlob);
+async function createThumbDataUrl(sourceCanvas, size = 320) {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, size, size);
-  ctx.drawImage(base, 0, 0, size, size);
-  base.close?.();
+  ctx.drawImage(sourceCanvas, 0, 0, size, size);
   return canvas.toDataURL("image/jpeg", 0.8);
 }
 const btnRefresh = document.getElementById("btnRefresh");
@@ -330,13 +328,23 @@ btnPublish?.addEventListener("click", async () => {
     }
 
     let blob = await editor.exportPngBlob({ hideUi: true });
-    if (!blob) throw new Error("逕ｻ蜒冗函謌舌↓螟ｱ謨励＠縺ｾ縺励◆");
+    if (!blob) throw new Error("画像の書き出しに失敗しました");
 
-    if (publishStatus) publishStatus.textContent = "サムネ生成中...";`r`n`r`n    const thumb = await createThumbDataUrl(blob, 320);`r`n    const state = editor.getState?.() || {};`r`n`r`n    if (publishStatus) publishStatus.textContent = "投稿登録中...";
+    if (publishStatus) publishStatus.textContent = "サムネ生成中...";
+
+    const thumb = await createThumbDataUrl(canvas, 320);
+    const state = editor.getState?.() || {};
+
+    if (publishStatus) publishStatus.textContent = "投稿登録中...";
 
     const designsCol = collection(db, "designs");
     await addDoc(designsCol, {
-      title: (titleInput?.value || "").trim(),`r`n      thumb,`r`n      state,`r`n      uid,`r`n      likes: 0,`r`n      createdAt: serverTimestamp()
+      title: (titleInput?.value || "").trim(),
+      thumb,
+      state,
+      uid,
+      likes: 0,
+      createdAt: serverTimestamp()
     });
 
     if (publishStatus) publishStatus.textContent = "投稿しました。ランキングに反映されます。";
@@ -348,6 +356,7 @@ btnPublish?.addEventListener("click", async () => {
     btnPublish.disabled = false;
   }
 });
+
 
 
 
