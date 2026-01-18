@@ -81,7 +81,7 @@ modal?.addEventListener("click", (e) => {
 const STICKERS = [
   { name: "Star", url: "assets/stickers/star.png" },
   { name: "Heart", url: "assets/stickers/heart.png" },
-  { name: "Logo", url: "assets/stickers/logo.png" },
+  { name: "Logo", url: "assets/stickers/Logo.png" },
 
   { name: "部室たまり場モビィ", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },
   { name: "裏垢拡散モビィ", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
