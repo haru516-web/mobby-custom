@@ -184,28 +184,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const cssSize = canvas.width || 900;
     let size = Number(state?.canvasW || state?.canvasH || 0);
     if (!size) {
-      let sumX = 0;
-      let sumY = 0;
-      let count = 0;
-      const objects = Array.isArray(state?.objects) ? state.objects : [];
-      for (const o of objects) {
-        if (o.type === "path" && Array.isArray(o.points)) {
-          for (const p of o.points) {
-            sumX += p.x || 0;
-            sumY += p.y || 0;
-            count += 1;
-          }
-          continue;
-        }
-        if (typeof o.x === "number" && typeof o.y === "number") {
-          sumX += o.x;
-          sumY += o.y;
-          count += 1;
-        }
-      }
-      const avgX = count ? sumX / count : 0;
-      const avgY = count ? sumY / count : 0;
-      size = (avgX > cssSize * 0.8 || avgY > cssSize * 0.8) ? cssSize * 2 : cssSize;
+      const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+      size = cssSize * dpr;
     }
     canvas.width = size;
     canvas.height = size;
@@ -459,8 +439,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
 
     const hasState = !!data?.state?.objects?.length || !!data?.state?.template;
     const previewMarkup = hasState
-      ? `<canvas id="previewCanvas" width="900" height="900" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)"></canvas>`
-      : `<img src="${data.imageUrl || ""}" alt="" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)">`;
+      ? `<canvas id="previewCanvas" class="previewMedia" width="900" height="900"></canvas>`
+      : `<img src="${data.imageUrl || ""}" alt="" class="previewMedia">`;
 
     modalBodyEl.innerHTML = `
       <div class="row" style="align-items:flex-start;">

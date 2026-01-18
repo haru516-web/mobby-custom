@@ -1,13 +1,19 @@
-﻿import { ensureAnonLogin, db } from "./firebase.js";
+﻿import { db, auth, googleProvider } from "./firebase.js";
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
-import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import {
+  collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
+  serverTimestamp, runTransaction, where, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
+const tabProfile = document.getElementById("tabProfile");
 const viewDesign = document.getElementById("viewDesign");
 const viewGallery = document.getElementById("viewGallery");
+const viewProfile = document.getElementById("viewProfile");
 
 const userBadge = document.getElementById("userBadge");
 
@@ -72,10 +78,41 @@ async function createThumbDataUrl(sourceCanvas, size = 320) {
 const btnRefresh = document.getElementById("btnRefresh");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
+const rankFilter = document.getElementById("rankFilter");
+
+const profileAvatar = document.getElementById("profileAvatar");
+const profileUid = document.getElementById("profileUid");
+const profileName = document.getElementById("profileName");
+const profileBio = document.getElementById("profileBio");
+const profileSave = document.getElementById("profileSave");
+const profileStatus = document.getElementById("profileStatus");
+const profileFollowingCount = document.getElementById("profileFollowingCount");
+const profileFollowersCount = document.getElementById("profileFollowersCount");
+const profileFollowingBtn = document.getElementById("profileFollowingBtn");
+const profileFollowersBtn = document.getElementById("profileFollowersBtn");
+const profileRankBadge = document.getElementById("profileRankBadge");
+const followingList = document.getElementById("followingList");
+const followersList = document.getElementById("followersList");
+const profileDesigns = document.getElementById("profileDesigns");
+const profileDesignsStatus = document.getElementById("profileDesignsStatus");
 
 const modal = document.getElementById("modal");
 const modalBody = document.getElementById("modalBody");
 const modalClose = document.getElementById("modalClose");
+const profileModal = document.getElementById("profileModal");
+const profileModalBody = document.getElementById("profileModalBody");
+const profileModalClose = document.getElementById("profileModalClose");
+const followListModal = document.getElementById("followListModal");
+const followListModalClose = document.getElementById("followListModalClose");
+const followListTitle = document.getElementById("followListTitle");
+const followListBody = document.getElementById("followListBody");
+const nicknameModal = document.getElementById("nicknameModal");
+const nicknameInput = document.getElementById("nicknameInput");
+const nicknameSave = document.getElementById("nicknameSave");
+const nicknameStatus = document.getElementById("nicknameStatus");
+const btnLogin = document.getElementById("btnLogin");
+const btnLogout = document.getElementById("btnLogout");
+const userAvatar = document.getElementById("userAvatar");
 
 modalClose?.addEventListener("click", () => modal.close());
 modal?.addEventListener("click", (e) => {
@@ -85,21 +122,92 @@ modal?.addEventListener("click", (e) => {
     e.clientY >= rect.top && e.clientY <= rect.bottom;
   if (!inside) modal.close();
 });
+profileModalClose?.addEventListener("click", () => profileModal.close());
+profileModal?.addEventListener("click", (e) => {
+  const rect = profileModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) profileModal.close();
+});
+followListModalClose?.addEventListener("click", () => followListModal.close());
+followListModal?.addEventListener("click", (e) => {
+  const rect = followListModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) followListModal.close();
+});
 
 // ---- assets list ----
-const STICKERS = [\n  { name: "heart", url: "assets/stickers/heart.png" },\n  { name: "Logo", url: "assets/stickers/Logo.png" },\n  { name: "star", url: "assets/stickers/star.png" },\n  { name: "カップル自撮りモビィ", url: "assets/stickers/モビィ透過済女/カップル自撮りモビィ.png" },\n  { name: "ストーリー撮影班モビィ", url: "assets/stickers/モビィ透過済女/ストーリー撮影班モビィ.png" },\n  { name: "ストーリー匂わせモビィ", url: "assets/stickers/モビィ透過済女/ストーリー匂わせモビィ.png" },\n  { name: "ネイルこだわりモビィ", url: "assets/stickers/モビィ透過済女/ネイルこだわりモビィ.png" },\n  { name: "プリクラ拡散モビィ", url: "assets/stickers/モビィ透過済女/プリクラ拡散モビィ.png" },\n  { name: "ロッカー手紙モビィ", url: "assets/stickers/モビィ透過済女/ロッカー手紙モビィ.png" },\n  { name: "屋上ひみつ恋モビィ", url: "assets/stickers/モビィ透過済女/屋上ひみつ恋モビィ.png" },\n  { name: "帰り道デートモビィ", url: "assets/stickers/モビィ透過済女/帰り道デートモビィ.png" },\n  { name: "購買前溜まり場モビィ", url: "assets/stickers/モビィ透過済女/購買前溜まり場モビィ.png" },\n  { name: "図書室まったりモビィ", url: "assets/stickers/モビィ透過済女/図書室まったりモビィ.png" },\n  { name: "昼休みお弁当会モビィ", url: "assets/stickers/モビィ透過済女/昼休みお弁当会モビィ.png" },\n  { name: "匂わせプリクラモビィ", url: "assets/stickers/モビィ透過済女/匂わせプリクラモビィ.png" },\n  { name: "文化祭広報モビィ", url: "assets/stickers/モビィ透過済女/文化祭広報モビィ.png" },\n  { name: "放課後こっそり通話モビィ", url: "assets/stickers/モビィ透過済女/放課後こっそり通話モビィ.png" },\n  { name: "放課後即レスモビィ", url: "assets/stickers/モビィ透過済女/放課後即レスモビィ.png" },\n  { name: "もしランキングモビィ", url: "assets/stickers/モビィ透過済男/もしランキングモビィ.png" },\n  { name: "応援団長モビィ", url: "assets/stickers/モビィ透過済男/応援団長モビィ.png" },\n  { name: "屋上自由時間モビィ", url: "assets/stickers/モビィ透過済男/屋上自由時間モビィ.png" },\n  { name: "学級委員モビィ", url: "assets/stickers/モビィ透過済男/学級委員モビィ.png" },\n  { name: "教科書落書きモビィ", url: "assets/stickers/モビィ透過済男/教科書落書きモビィ.png" },\n  { name: "自習室モビィ", url: "assets/stickers/モビィ透過済男/自習室モビィ.png" },\n  { name: "図書委員モビィ", url: "assets/stickers/モビィ透過済男/図書委員モビィ.png" },\n  { name: "制服アレンジモビィ", url: "assets/stickers/モビィ透過済男/制服アレンジモビィ.png" },\n  { name: "成績掲示板モビィ", url: "assets/stickers/モビィ透過済男/成績掲示板モビィ.png" },\n  { name: "体育祭モビィ", url: "assets/stickers/モビィ透過済男/体育祭モビィ.png" },\n  { name: "舞台袖実行委員モビィ", url: "assets/stickers/モビィ透過済男/舞台袖実行委員モビィ.png" },\n  { name: "部室たまり場モビィ", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },\n  { name: "文化祭センターステージモビィ", url: "assets/stickers/モビィ透過済男/文化祭センターステージモビィ.png" },\n  { name: "理科室研究モビィ", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },\n  { name: "裏垢拡散モビィ", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },\n  { name: "廊下ランウェイモビィ", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },\n];
+const STICKERS = [
+  { name: "Logo", url: "assets/stickers/Logo.png" },
+  { name: "キラキラ1", url: "assets/stickers/キラキラ１.PNG" },
+  { name: "一生友達", url: "assets/stickers/キラキラ２.PNG" },
+  { name: "キラキラ2", url: "assets/stickers/キラキラ３.PNG" },
+  { name: "ハートヒョウ柄", url: "assets/stickers/ハートヒョウ柄.PNG" },
+  { name: "ハート1", url: "assets/stickers/ハート１.PNG" },
+  { name: "ハート2", url: "assets/stickers/ハート２.PNG" },
+  { name: "ハート3", url: "assets/stickers/ハート３.PNG" },
+  { name: "心友", url: "assets/stickers/心友.PNG" },
+  { name: "星1", url: "assets/stickers/星１.PNG" },
+  { name: "カップル自撮りモビー", url: "assets/stickers/モビィ透過済女/カップル自撮りモビィ.png" },
+  { name: "ストーリー撮影班モビー", url: "assets/stickers/モビィ透過済女/ストーリー撮影班モビィ.png" },
+  { name: "ストーリー匂わせモビー", url: "assets/stickers/モビィ透過済女/ストーリー匂わせモビィ.png" },
+  { name: "ネイルこだわりモビー", url: "assets/stickers/モビィ透過済女/ネイルこだわりモビィ.png" },
+  { name: "プリクラ拡散モビー", url: "assets/stickers/モビィ透過済女/プリクラ拡散モビィ.png" },
+  { name: "ロッカー手紙モビー", url: "assets/stickers/モビィ透過済女/ロッカー手紙モビィ.png" },
+  { name: "屋上ひみつ恋モビー", url: "assets/stickers/モビィ透過済女/屋上ひみつ恋モビィ.png" },
+  { name: "帰り道デートモビー", url: "assets/stickers/モビィ透過済女/帰り道デートモビィ.png" },
+  { name: "購買前溜まり場モビー", url: "assets/stickers/モビィ透過済女/購買前溜まり場モビィ.png" },
+  { name: "図書室まったりモビー", url: "assets/stickers/モビィ透過済女/図書室まったりモビィ.png" },
+  { name: "昼休みお弁当会モビー", url: "assets/stickers/モビィ透過済女/昼休みお弁当会モビィ.png" },
+  { name: "匂わせプリクラモビー", url: "assets/stickers/モビィ透過済女/匂わせプリクラモビィ.png" },
+  { name: "文化祭広報モビー", url: "assets/stickers/モビィ透過済女/文化祭広報モビィ.png" },
+  { name: "放課後こっそり通話モビー", url: "assets/stickers/モビィ透過済女/放課後こっそり通話モビィ.png" },
+  { name: "放課後即レスモビー", url: "assets/stickers/モビィ透過済女/放課後即レスモビィ.png" },
+  { name: "もしランキングモビー", url: "assets/stickers/モビィ透過済男/もしランキングモビィ.png" },
+  { name: "応援団長モビー", url: "assets/stickers/モビィ透過済男/応援団長モビィ.png" },
+  { name: "屋上自由時間モビー", url: "assets/stickers/モビィ透過済男/屋上自由時間モビィ.png" },
+  { name: "学級委員モビー", url: "assets/stickers/モビィ透過済男/学級委員モビィ.png" },
+  { name: "教科書落書きモビー", url: "assets/stickers/モビィ透過済男/教科書落書きモビィ.png" },
+  { name: "自習室モビー", url: "assets/stickers/モビィ透過済男/自習室モビィ.png" },
+  { name: "図書委員モビー", url: "assets/stickers/モビィ透過済男/図書委員モビィ.png" },
+  { name: "制服アレンジモビー", url: "assets/stickers/モビィ透過済男/制服アレンジモビィ.png" },
+  { name: "成績掲示板モビー", url: "assets/stickers/モビィ透過済男/成績掲示板モビィ.png" },
+  { name: "体育祭モビー", url: "assets/stickers/モビィ透過済男/体育祭モビィ.png" },
+  { name: "舞台袖実行委員モビー", url: "assets/stickers/モビィ透過済男/舞台袖実行委員モビィ.png" },
+  { name: "部室たまり場モビー", url: "assets/stickers/モビィ透過済男/部室たまり場モビィ.png" },
+  { name: "文化祭センターステージモビー", url: "assets/stickers/モビィ透過済男/文化祭センターステージモビィ.png" },
+  { name: "理科室研究モビー", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },
+  { name: "裏垢拡散モビー", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
+  { name: "廊下ランウェイモビー", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },
+];
+const MOBBY_NAME_RE = /モビ[ィー]/;
 
 function showDesign() {
   tabDesign?.classList.add("active");
   tabGallery?.classList.remove("active");
+  tabProfile?.classList.remove("active");
   viewDesign?.classList.remove("hidden");
   viewGallery?.classList.add("hidden");
+  viewProfile?.classList.add("hidden");
 }
 function showGallery() {
   tabGallery?.classList.add("active");
   tabDesign?.classList.remove("active");
+  tabProfile?.classList.remove("active");
   viewGallery?.classList.remove("hidden");
   viewDesign?.classList.add("hidden");
+  viewProfile?.classList.add("hidden");
+}
+function showProfile() {
+  tabProfile?.classList.add("active");
+  tabDesign?.classList.remove("active");
+  tabGallery?.classList.remove("active");
+  viewProfile?.classList.remove("hidden");
+  viewDesign?.classList.add("hidden");
+  viewGallery?.classList.add("hidden");
 }
 
 // ---- main ----
@@ -282,47 +390,553 @@ setAdjustPanel("text");
 
 let gallery = null;
 let uid = "";
+let galleryUid = "";
+let followingSet = new Set();
+const profileCache = new Map();
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
   showGallery();
   await gallery?.fetchTop?.();
+  syncRankFilterOptions();
+});
+tabProfile?.addEventListener("click", async () => {
+  showProfile();
+  await loadProfileView();
 });
 btnRefresh?.addEventListener("click", async () => {
   await gallery?.fetchTop?.();
+  syncRankFilterOptions();
+});
+rankFilter?.addEventListener("change", () => {
+  gallery?.setFilter?.(rankFilter.value || "all");
 });
 
-try {
-  const user = await ensureAnonLogin();
-  uid = user.uid;
-  if (userBadge) userBadge.textContent = `uid: ${uid.slice(0, 6)}...`;
+function syncAuthUi(user) {
+  if (userBadge) {
+    userBadge.textContent = user ? `uid: ${user.uid.slice(0, 6)}...` : "未ログイン";
+  }
+  btnLogin?.classList.toggle("hidden", !!user);
+  btnLogout?.classList.toggle("hidden", !user);
+  if (userAvatar) {
+    const avatarUrl = user?.photoURL || "";
+    if (avatarUrl) {
+      userAvatar.src = avatarUrl;
+      userAvatar.alt = user?.displayName ? `${user.displayName}のアイコン` : "Googleアカウントのアイコン";
+      userAvatar.title = user?.displayName || user?.email || "";
+      userAvatar.classList.remove("hidden");
+    } else {
+      userAvatar.removeAttribute("src");
+      userAvatar.removeAttribute("title");
+      userAvatar.classList.add("hidden");
+    }
+  }
+}
 
+syncAuthUi(null);
+
+function updateUserBadgeFromProfile(profile, user) {
+  if (!userBadge) return;
+  if (!user) {
+    userBadge.textContent = "未ログイン";
+    return;
+  }
+  const name = profile?.displayName?.trim();
+  userBadge.textContent = name ? name : `uid: ${user.uid.slice(0, 6)}...`;
+}
+function syncRankFilterOptions() {
+  if (!rankFilter || !gallery) return;
+  const options = gallery.getFilterOptions?.() || ["all"];
+  const current = rankFilter.value || "all";
+  rankFilter.innerHTML = "";
+  for (const opt of options) {
+    const el = document.createElement("option");
+    el.value = opt;
+    el.textContent = opt === "all" ? "すべて" : opt;
+    rankFilter.appendChild(el);
+  }
+  rankFilter.value = options.includes(current) ? current : "all";
+  gallery.setFilter?.(rankFilter.value || "all");
+}
+
+async function updateProfileRankBadge(targetUid) {
+  if (!profileRankBadge) return;
+  profileRankBadge.classList.add("hidden");
+  profileRankBadge.classList.remove("rank1", "rank2", "rank3");
+  if (!targetUid) return;
+  try {
+    const designsCol = collection(db, "designs");
+    const q = query(designsCol, orderBy("likes", "desc"), limit(3));
+    const snap = await getDocs(q);
+    let rank = null;
+    snap.docs.some((d, index) => {
+      if (d.data()?.uid === targetUid) {
+        rank = index + 1;
+        return true;
+      }
+      return false;
+    });
+    if (rank) {
+      profileRankBadge.textContent = `👑 ${rank}位`;
+      profileRankBadge.classList.remove("hidden");
+      profileRankBadge.classList.add(`rank${rank}`);
+    }
+  } catch (e) {
+    console.warn("profile rank fetch failed", e);
+  }
+}
+
+function ensureGallery(nextUid) {
+  if (gallery && galleryUid === nextUid) return;
+  galleryUid = nextUid;
   gallery = createGallery({
-    db, uid,
+    db,
+    uid: nextUid,
     gridEl: galleryGrid,
     statusEl: galleryStatus,
     modalEl: modal,
-    modalBodyEl: modalBody
+    modalBodyEl: modalBody,
+    profileModalEl: profileModal,
+    profileModalBodyEl: profileModalBody
   });
-  if (viewGallery && !viewGallery.classList.contains("hidden")) {
-    await gallery.fetchTop();
-  }
-} catch (e) {
-  if (userBadge) userBadge.textContent = "login failed";
-  if (galleryStatus) galleryStatus.textContent = "ログインに失敗しました。再読み込みしてください。";
 }
+
+function getFallbackName(nextUid) {
+  if (!nextUid) return "user-unknown";
+  return `user-${nextUid.slice(0, 6)}`;
+}
+
+function formatDate(ts) {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString("ja-JP");
+}
+
+async function ensureProfileDoc(user) {
+  if (!user) return;
+  try {
+    const profileRef = doc(db, "profiles", user.uid);
+    const snap = await getDoc(profileRef);
+    const data = snap.exists() ? snap.data() : {};
+    const next = { updatedAt: serverTimestamp() };
+    if (!data.photoURL && user.photoURL) next.photoURL = user.photoURL;
+    if (!data.bio) next.bio = "";
+    if (!snap.exists()) {
+      next.createdAt = serverTimestamp();
+      next.followersCount = 0;
+      next.followingCount = 0;
+    }
+    await setDoc(profileRef, next, { merge: true });
+  } catch (e) {
+    console.warn("profile ensure failed", e);
+  }
+}
+
+async function fetchProfile(targetUid) {
+  if (!targetUid) return null;
+  if (profileCache.has(targetUid)) return profileCache.get(targetUid);
+  try {
+    const ref = doc(db, "profiles", targetUid);
+    const snap = await getDoc(ref);
+    const data = snap.exists() ? snap.data() : null;
+    profileCache.set(targetUid, data);
+    return data;
+  } catch (e) {
+    console.warn("profile fetch failed", e);
+    profileCache.set(targetUid, null);
+    return null;
+  }
+}
+
+async function refreshFollowingSet() {
+  if (!uid) {
+    followingSet = new Set();
+    return;
+  }
+  const col = collection(db, "profiles", uid, "following");
+  const q = query(col, orderBy("createdAt", "desc"), limit(50));
+  const snap = await getDocs(q);
+  followingSet = new Set(snap.docs.map((d) => d.id));
+}
+
+async function toggleFollow(targetUid) {
+  if (!uid || !targetUid || uid === targetUid) return false;
+  const followingRef = doc(db, "profiles", uid, "following", targetUid);
+  const followerRef = doc(db, "profiles", targetUid, "followers", uid);
+  const myProfileRef = doc(db, "profiles", uid);
+  const targetProfileRef = doc(db, "profiles", targetUid);
+
+  let nextFollowing = false;
+  let nextFollowersCount = 0;
+  let nextFollowingCount = 0;
+
+  await runTransaction(db, async (tx) => {
+    const [followingSnap, mySnap, targetSnap] = await Promise.all([
+      tx.get(followingRef),
+      tx.get(myProfileRef),
+      tx.get(targetProfileRef)
+    ]);
+    const myCount = Number(mySnap.data()?.followingCount || 0);
+    const targetCount = Number(targetSnap.data()?.followersCount || 0);
+
+    if (followingSnap.exists()) {
+      tx.delete(followingRef);
+      tx.delete(followerRef);
+      nextFollowing = false;
+      nextFollowingCount = Math.max(0, myCount - 1);
+      nextFollowersCount = Math.max(0, targetCount - 1);
+    } else {
+      tx.set(followingRef, { createdAt: serverTimestamp() });
+      tx.set(followerRef, { createdAt: serverTimestamp() });
+      nextFollowing = true;
+      nextFollowingCount = myCount + 1;
+      nextFollowersCount = targetCount + 1;
+    }
+
+    tx.set(myProfileRef, { followingCount: nextFollowingCount }, { merge: true });
+    tx.set(targetProfileRef, { followersCount: nextFollowersCount }, { merge: true });
+  });
+
+  const cached = profileCache.get(targetUid);
+  if (cached) {
+    cached.followersCount = nextFollowersCount;
+    profileCache.set(targetUid, cached);
+  }
+  return nextFollowing;
+}
+
+function setProfileUiEnabled(enabled) {
+  if (profileName) profileName.disabled = !enabled;
+  if (profileBio) profileBio.disabled = !enabled;
+  if (profileSave) profileSave.disabled = !enabled;
+}
+
+async function renderUserList(type, container) {
+  if (!container) return;
+  if (!uid) {
+    container.innerHTML = `<div class="muted">ログインが必要です。</div>`;
+    return;
+  }
+  const col = collection(db, "profiles", uid, type);
+  const q = query(col, orderBy("createdAt", "desc"), limit(30));
+  const snap = await getDocs(q);
+  if (snap.empty) {
+    container.innerHTML = `<div class="muted">まだいません。</div>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  for (const docSnap of snap.docs) {
+    const targetUid = docSnap.id;
+    const profile = await fetchProfile(targetUid);
+    const displayName = profile?.displayName || getFallbackName(targetUid);
+    const photoUrl = profile?.photoURL || "";
+
+    const card = document.createElement("div");
+    card.className = "userCard";
+
+    const avatar = document.createElement("img");
+    avatar.className = "userAvatar";
+    avatar.alt = `${displayName}のアイコン`;
+    if (photoUrl) avatar.src = photoUrl;
+
+    const meta = document.createElement("div");
+    meta.className = "userMeta";
+    const nameEl = document.createElement("div");
+    nameEl.className = "userName";
+    nameEl.textContent = displayName;
+    const idEl = document.createElement("div");
+    idEl.className = "userId";
+    idEl.textContent = `uid: ${targetUid.slice(0, 6)}...`;
+    meta.appendChild(nameEl);
+    meta.appendChild(idEl);
+
+    const btn = document.createElement("button");
+    btn.className = "btn smallBtn";
+    if (targetUid === uid) {
+      btn.textContent = "あなた";
+      btn.disabled = true;
+    } else {
+      const isFollowing = followingSet.has(targetUid);
+      btn.textContent = isFollowing ? (type === "following" ? "解除" : "フォロー中") : "フォロー";
+      btn.classList.toggle("active", isFollowing && type !== "following");
+      btn.addEventListener("click", async () => {
+        await toggleFollow(targetUid);
+        await loadProfileView();
+      });
+    }
+
+    card.appendChild(avatar);
+    card.appendChild(meta);
+    card.appendChild(btn);
+    container.appendChild(card);
+  }
+}
+
+async function openFollowList(type) {
+  if (!followListModal || !followListTitle || !followListBody) return;
+  if (!uid) {
+    followListTitle.textContent = "";
+    followListBody.innerHTML = `<div class="muted">ログインが必要です。</div>`;
+    followListModal.showModal();
+    return;
+  }
+  followListTitle.textContent = type === "following" ? "フォロー中" : "フォロワー";
+  followListBody.innerHTML = `<div class="muted">読み込み中...</div>`;
+  followListModal.showModal();
+  await renderUserList(type, followListBody);
+}
+
+async function renderProfileDesigns() {
+  if (!profileDesigns || !profileDesignsStatus) return;
+  if (!uid) {
+    profileDesigns.innerHTML = "";
+    profileDesignsStatus.textContent = "ログインが必要です。";
+    return;
+  }
+  profileDesignsStatus.textContent = "読み込み中...";
+  profileDesigns.innerHTML = "";
+  try {
+    const designsCol = collection(db, "designs");
+    const q = query(
+      designsCol,
+      where("uid", "==", uid),
+      orderBy("createdAt", "desc"),
+      limit(30)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      profileDesignsStatus.textContent = "まだ投稿がありません。";
+      return;
+    }
+    profileDesignsStatus.textContent = "";
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      const card = document.createElement("div");
+      card.className = "profileWork";
+
+      const img = document.createElement("img");
+      img.src = data.thumb || data.imageUrl || "";
+      img.alt = data.title || "Untitled";
+
+      const body = document.createElement("div");
+      body.className = "profileWorkBody";
+
+      const title = document.createElement("div");
+      title.className = "profileWorkTitle";
+      title.textContent = data.title || "Untitled";
+
+      const meta = document.createElement("div");
+      meta.className = "profileWorkMeta";
+      meta.textContent = `👍 ${Number(data.likes || 0)} / ${formatDate(data.createdAt)}`;
+
+      const actions = document.createElement("div");
+      actions.className = "profileWorkActions";
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn smallBtn";
+      delBtn.type = "button";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("この投稿を削除しますか？")) return;
+        try {
+          delBtn.disabled = true;
+          await deleteDoc(doc(db, "designs", docSnap.id));
+          card.remove();
+          if (!profileDesigns.children.length) {
+            profileDesignsStatus.textContent = "まだ投稿がありません。";
+          }
+        } catch (e) {
+          alert("削除に失敗: " + e.message);
+        } finally {
+          delBtn.disabled = false;
+        }
+      });
+
+      actions.appendChild(delBtn);
+      body.appendChild(title);
+      body.appendChild(meta);
+      body.appendChild(actions);
+      card.appendChild(img);
+      card.appendChild(body);
+      profileDesigns.appendChild(card);
+    }
+  } catch (e) {
+    console.warn("profile designs fetch failed", e);
+    profileDesignsStatus.textContent = "読み込みに失敗しました。";
+  }
+}
+
+async function loadProfileView() {
+  if (!viewProfile || viewProfile.classList.contains("hidden")) return;
+  if (!uid) {
+    if (profileStatus) profileStatus.textContent = "ログインが必要です。";
+    if (profileUid) profileUid.textContent = "uid: -";
+    if (profileAvatar) {
+      profileAvatar.removeAttribute("src");
+    }
+    if (profileRankBadge) {
+      profileRankBadge.classList.add("hidden");
+      profileRankBadge.classList.remove("rank1", "rank2", "rank3");
+    }
+    setProfileUiEnabled(false);
+    if (profileFollowingCount) profileFollowingCount.textContent = "0";
+    if (profileFollowersCount) profileFollowersCount.textContent = "0";
+    return;
+  }
+
+  setProfileUiEnabled(true);
+  if (profileStatus) profileStatus.textContent = "読み込み中...";
+
+  const profile = await fetchProfile(uid);
+  const displayName = profile?.displayName || getFallbackName(uid);
+  if (profileName) profileName.value = displayName;
+  if (profileBio) profileBio.value = profile?.bio || "";
+  if (profileUid) profileUid.textContent = `uid: ${uid.slice(0, 6)}...`;
+  if (profileAvatar) {
+    const url = profile?.photoURL || auth.currentUser?.photoURL || "";
+    if (url) profileAvatar.src = url;
+    else profileAvatar.removeAttribute("src");
+  }
+  if (profileFollowingCount) profileFollowingCount.textContent = String(profile?.followingCount || 0);
+  if (profileFollowersCount) profileFollowersCount.textContent = String(profile?.followersCount || 0);
+  await updateProfileRankBadge(uid);
+
+  await refreshFollowingSet();
+  await renderProfileDesigns();
+
+  if (profileStatus) profileStatus.textContent = "";
+}
+
+function openNicknameModal(currentName) {
+  if (!nicknameModal || !nicknameInput) return;
+  nicknameInput.value = currentName || "";
+  if (nicknameStatus) nicknameStatus.textContent = "";
+  nicknameModal.showModal();
+  nicknameInput.focus();
+}
+
+onAuthStateChanged(auth, async (user) => {
+  uid = user?.uid || "";
+  syncAuthUi(user);
+  await ensureProfileDoc(user);
+  profileCache.clear();
+  const profile = await fetchProfile(uid);
+  updateUserBadgeFromProfile(profile, user);
+  ensureGallery(uid);
+  if (viewGallery && !viewGallery.classList.contains("hidden")) {
+    await gallery?.fetchTop?.();
+    syncRankFilterOptions();
+  }
+  if (viewProfile && !viewProfile.classList.contains("hidden")) {
+    await loadProfileView();
+  }
+  if (user && (!profile?.displayName || !profile.displayName.trim())) {
+    openNicknameModal("");
+  }
+});
+
+profileFollowingBtn?.addEventListener("click", async () => {
+  await openFollowList("following");
+});
+profileFollowersBtn?.addEventListener("click", async () => {
+  await openFollowList("followers");
+});
+
+btnLogin?.addEventListener("click", async () => {
+  try {
+    if (btnLogin) btnLogin.disabled = true;
+    if (userBadge) userBadge.textContent = "ログイン中...";
+    await signInWithPopup(auth, googleProvider);
+  } catch (e) {
+    if (e?.code === "auth/operation-not-allowed") {
+      alert("Googleログインが無効です。Firebaseコンソールで Authentication > ログイン方法 > Google を有効化してください。");
+    } else if (e?.code === "auth/unauthorized-domain") {
+      alert("このドメインは許可されていません。Firebaseコンソールの Authentication > 設定 > 承認済みドメイン に追加してください。");
+    } else if (e?.code === "auth/popup-blocked") {
+      alert("ポップアップがブロックされました。許可して再試行してください。");
+    } else if (e?.code === "auth/popup-closed-by-user") {
+      // no-op
+    } else {
+      alert("ログインに失敗: " + e.message);
+    }
+    syncAuthUi(auth.currentUser);
+  } finally {
+    if (btnLogin) btnLogin.disabled = false;
+  }
+});
+
+btnLogout?.addEventListener("click", async () => {
+  try {
+    if (btnLogout) btnLogout.disabled = true;
+    if (userBadge) userBadge.textContent = "ログアウト中...";
+    await signOut(auth);
+    syncAuthUi(null);
+  } catch (e) {
+    alert("ログアウトに失敗: " + e.message);
+    syncAuthUi(auth.currentUser);
+  } finally {
+    if (btnLogout) btnLogout.disabled = false;
+  }
+});
+
+nicknameSave?.addEventListener("click", async () => {
+  if (!uid) {
+    alert("ログインが必要");
+    return;
+  }
+  const name = (nicknameInput?.value || "").trim();
+  if (!name) {
+    if (nicknameStatus) nicknameStatus.textContent = "ニックネームを入力してください。";
+    return;
+  }
+  try {
+    if (nicknameSave) nicknameSave.disabled = true;
+    if (nicknameStatus) nicknameStatus.textContent = "保存中...";
+    const profileRef = doc(db, "profiles", uid);
+    let needsInit = false;
+    try {
+      const snap = await getDoc(profileRef);
+      needsInit = !snap.exists();
+    } catch (_) {
+      needsInit = true;
+    }
+    const payload = { displayName: name, updatedAt: serverTimestamp() };
+    if (needsInit) {
+      payload.createdAt = serverTimestamp();
+      payload.followersCount = 0;
+      payload.followingCount = 0;
+      payload.bio = "";
+    }
+    await setDoc(profileRef, payload, { merge: true });
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), displayName: name });
+    if (profileName) profileName.value = name;
+    updateUserBadgeFromProfile({ displayName: name }, auth.currentUser);
+    if (nicknameStatus) nicknameStatus.textContent = "保存しました。";
+    nicknameModal?.close();
+  } catch (e) {
+    alert("ニックネーム保存に失敗: " + e.message);
+    if (nicknameStatus) nicknameStatus.textContent = "";
+  } finally {
+    if (nicknameSave) nicknameSave.disabled = false;
+  }
+});
 
 // ---- publish ----
 btnPublish?.addEventListener("click", async () => {
   try {
+    if (!uid) {
+      alert("ログインが必要");
+      return;
+    }
     btnPublish.disabled = true;
     if (publishStatus) publishStatus.textContent = "画像を書き出し中...";
 
     const usedNames = editor.getUsedAssetNames();
     const hasLogo = usedNames.includes("Logo");
-    const hasMobby = usedNames.some((name) => name.includes("モビィ"));
+    const hasMobby = usedNames.some((name) => MOBBY_NAME_RE.test(name));
     if (!hasLogo || !hasMobby) {
-      alert("モビィのステッカーを1つ以上と、Logoステッカーを使用してください。");
+      alert("モビーのステッカーを1つ以上と、Logoステッカーを使用してください。");
       if (publishStatus) publishStatus.textContent = "";
       return;
     }
@@ -331,7 +945,6 @@ btnPublish?.addEventListener("click", async () => {
     if (!blob) throw new Error("画像の書き出しに失敗しました");
 
     if (publishStatus) publishStatus.textContent = "サムネ生成中...";
-
     const thumb = await createThumbDataUrl(canvas, 320);
     const state = editor.getState?.() || {};
 
@@ -357,6 +970,31 @@ btnPublish?.addEventListener("click", async () => {
   }
 });
 
-
+profileSave?.addEventListener("click", async () => {
+  if (!uid) {
+    alert("ログインが必要");
+    return;
+  }
+  try {
+    if (profileSave) profileSave.disabled = true;
+    if (profileStatus) profileStatus.textContent = "保存中...";
+    const name = (profileName?.value || "").trim() || getFallbackName(uid);
+    const bio = (profileBio?.value || "").trim();
+    const profileRef = doc(db, "profiles", uid);
+    await setDoc(profileRef, {
+      displayName: name,
+      bio,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), displayName: name, bio });
+    updateUserBadgeFromProfile({ displayName: name }, auth.currentUser);
+    if (profileStatus) profileStatus.textContent = "保存しました。";
+  } catch (e) {
+    alert("プロフィール保存に失敗: " + e.message);
+    if (profileStatus) profileStatus.textContent = "";
+  } finally {
+    if (profileSave) profileSave.disabled = false;
+  }
+});
 
 

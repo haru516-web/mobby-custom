@@ -1,4 +1,4 @@
-export function createEditor({ canvas, templateSelect, assetGrid }) {
+﻿export function createEditor({ canvas, templateSelect, assetGrid }) {
   const ctx = canvas.getContext("2d");
   const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
 
@@ -11,6 +11,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   let drawing = null;
   let dragMoved = false;
   let rotateDrag = null;
+  let scaleDrag = null;
   let erasing = null;
   let drawTool = "pen";
   let pinch = null;
@@ -219,6 +220,52 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     return { w, h };
   }
 
+  function getDeleteHandle(o) {
+    const bounds = getObjectBounds(o);
+    const offset = Math.max(10 * DPR, Math.min(bounds.w, bounds.h) * 0.08);
+    const radius = Math.max(12 * DPR, Math.min(bounds.w, bounds.h) * 0.09);
+    const localX = bounds.w / 2 + offset;
+    const localY = -bounds.h / 2 - offset;
+    const cos = Math.cos(o.r);
+    const sin = Math.sin(o.r);
+    return {
+      x: o.x + localX * cos - localY * sin,
+      y: o.y + localX * sin + localY * cos,
+      radius
+    };
+  }
+
+  function getScaleHandle(o) {
+    const bounds = getObjectBounds(o);
+    const offset = Math.max(14 * DPR, Math.min(bounds.w, bounds.h) * 0.1);
+    const radius = Math.max(16 * DPR, Math.min(bounds.w, bounds.h) * 0.1);
+    const localX = bounds.w / 2 + offset;
+    const localY = bounds.h / 2 + offset;
+    const cos = Math.cos(o.r);
+    const sin = Math.sin(o.r);
+    return {
+      x: o.x + localX * cos - localY * sin,
+      y: o.y + localX * sin + localY * cos,
+      radius
+    };
+  }
+
+  function hitDeleteHandle(px, py, o) {
+    if (o.type !== "img") return false;
+    const handle = getDeleteHandle(o);
+    const dx = px - handle.x;
+    const dy = py - handle.y;
+    return (dx * dx + dy * dy) <= (handle.radius * handle.radius);
+  }
+
+  function hitScaleHandle(px, py, o) {
+    if (o.type === "path") return false;
+    const handle = getScaleHandle(o);
+    const dx = px - handle.x;
+    const dy = py - handle.y;
+    return (dx * dx + dy * dy) <= (handle.radius * handle.radius);
+  }
+
   function getRotationRing(px, py, o) {
     const dx = px - o.x;
     const dy = py - o.y;
@@ -424,6 +471,36 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
         ctx.arc(ring, 0, 4 * DPR, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
+
+        const scaleHandle = getScaleHandle(o);
+        ctx.save();
+        ctx.fillStyle = "rgba(106,168,255,.9)";
+        ctx.strokeStyle = "rgba(255,255,255,.9)";
+        ctx.lineWidth = Math.max(2, 2 * DPR);
+        ctx.beginPath();
+        ctx.arc(scaleHandle.x, scaleHandle.y, scaleHandle.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (o && o.type === "img") {
+        const handle = getDeleteHandle(o);
+        ctx.save();
+        ctx.fillStyle = "rgba(28,34,48,.9)";
+        ctx.strokeStyle = "rgba(255,255,255,.9)";
+        ctx.lineWidth = Math.max(2, 2 * DPR);
+        ctx.beginPath();
+        ctx.arc(handle.x, handle.y, handle.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        const cross = handle.radius * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(handle.x - cross, handle.y - cross);
+        ctx.lineTo(handle.x + cross, handle.y + cross);
+        ctx.moveTo(handle.x + cross, handle.y - cross);
+        ctx.lineTo(handle.x - cross, handle.y + cross);
+        ctx.stroke();
+        ctx.restore();
       }
     }
   }
@@ -458,6 +535,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     };
     drag = null;
     rotateDrag = null;
+    scaleDrag = null;
     drawing = null;
     erasing = null;
     return true;
@@ -499,6 +577,27 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     }
     const current = selectedId ? objects.find(v => v.id === selectedId) : null;
     if (current && current.type !== "path") {
+      if (hitDeleteHandle(x, y, current)) {
+        objects = objects.filter(v => v.id !== current.id);
+        selectedId = null;
+        draw();
+        pushHistory();
+        return;
+      }
+      if (hitScaleHandle(x, y, current)) {
+        const dist = Math.hypot(x - current.x, y - current.y);
+        scaleDrag = {
+          id: current.id,
+          startDist: dist || 1,
+          baseScale: current.s
+        };
+        drag = null;
+        rotateDrag = null;
+        drawing = null;
+        erasing = null;
+        draw();
+        return;
+      }
       const ring = getRotationRing(x, y, current);
       if (ring) {
         rotateDrag = {
@@ -535,6 +634,18 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
           o.s = nextScale;
           draw();
         }
+      }
+      return;
+    }
+    if (scaleDrag && scaleDrag.id) {
+      const o = objects.find(v => v.id === scaleDrag.id);
+      if (!o) return;
+      const { x, y } = toCanvasCoords(e);
+      const dist = Math.hypot(x - o.x, y - o.y);
+      const nextScale = clampScale(scaleDrag.baseScale * (dist / scaleDrag.startDist));
+      if (o.s !== nextScale) {
+        o.s = nextScale;
+        draw();
       }
       return;
     }
@@ -593,6 +704,11 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
       pushHistory();
       return;
     }
+    if (scaleDrag) {
+      scaleDrag = null;
+      pushHistory();
+      return;
+    }
     if (erasing && erasing.pointerId === e.pointerId) {
       erasing = null;
       pushHistory();
@@ -618,6 +734,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     rotateDrag = null;
     erasing = null;
     pinch = null;
+    scaleDrag = null;
   });
 
   canvas.addEventListener("wheel", (e) => {
@@ -677,14 +794,80 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
 
   function setAssets(assetList) {
     assetGrid.innerHTML = "";
+    const groups = [
+      { key: "mobby", label: "モビー" },
+      { key: "lucky", label: "素材" },
+      { key: "logo", label: "Logo" },
+    ];
+
+    const grouped = new Map(groups.map((g) => [g.key, []]));
+    const isMobbyAsset = (name, url) => /モビ[ィー]/.test(name) || /モビ[ィー]/.test(url) || /モビィ透過済|モビー透過済/.test(url);
+
     for (const a of assetList) {
-      const div = document.createElement("button");
-      div.className = "asset";
-      div.type = "button";
-      div.innerHTML = `<img src="${a.url}" alt=""><span>${a.name}</span>`;
-      div.addEventListener("click", () => addAsset(a.url, a.name));
-      assetGrid.appendChild(div);
+      const url = String(a.url || "");
+      const name = String(a.name || "");
+      let key = "lucky";
+      if (name === "Logo") {
+        key = "logo";
+      } else if (isMobbyAsset(name, url)) {
+        key = "mobby";
+      }
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(a);
     }
+
+    const tabs = document.createElement("div");
+    tabs.className = "assetTabs";
+    const row = document.createElement("div");
+    row.className = "assetRow";
+    const empty = document.createElement("p");
+    empty.className = "muted assetEmpty";
+
+    const tabButtons = new Map();
+    let activeKey = groups.find((g) => (grouped.get(g.key) || []).length)?.key || groups[0].key;
+
+    function renderGroup(key) {
+      row.innerHTML = "";
+      const items = grouped.get(key) || [];
+      empty.textContent = "素材がまだありません。";
+      empty.classList.toggle("hidden", items.length > 0);
+      for (const a of items) {
+        const div = document.createElement("button");
+        div.className = "asset";
+        div.type = "button";
+        div.innerHTML = `<img src="${a.url}" alt=""><span>${a.name}</span>`;
+        div.addEventListener("click", () => addAsset(a.url, a.name));
+        row.appendChild(div);
+      }
+    }
+
+    function updateTabs() {
+      for (const [key, btn] of tabButtons.entries()) {
+        btn.classList.toggle("active", key === activeKey);
+      }
+    }
+
+    for (const group of groups) {
+      const btn = document.createElement("button");
+      btn.className = "assetTab";
+      btn.type = "button";
+      btn.textContent = group.label;
+      btn.addEventListener("click", () => {
+        if (activeKey === group.key) return;
+        activeKey = group.key;
+        renderGroup(activeKey);
+        updateTabs();
+      });
+      tabButtons.set(group.key, btn);
+      tabs.appendChild(btn);
+    }
+
+    assetGrid.appendChild(tabs);
+    assetGrid.appendChild(row);
+    assetGrid.appendChild(empty);
+
+    renderGroup(activeKey);
+    updateTabs();
   }
 
   function getUsedAssetNames() {
@@ -739,7 +922,12 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
         strokeWidth: o.strokeWidth || 0
       };
     });
-    return { template: templateUrl, objects: safeObjects };
+    return {
+      template: templateUrl,
+      canvasW: canvas.width,
+      canvasH: canvas.height,
+      objects: safeObjects
+    };
   }
 
   function setDrawMode(mode) {

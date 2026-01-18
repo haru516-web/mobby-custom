@@ -334,6 +334,23 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 .profileLists{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:14px}
 .profileListTitle{margin:0 0 6px;font-size:16px}
 .userList{display:grid;gap:10px}
+.profileDesignsSection{display:flex;flex-direction:column;gap:8px}
+.profileDesigns{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
+}
+.profileWork{
+  border:1px solid var(--border);
+  border-radius:20px;
+  overflow:hidden;
+  background:rgba(255,255,255,.65);
+}
+.profileWork img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+.profileWorkBody{padding:10px}
+.profileWorkTitle{font-weight:700}
+.profileWorkMeta{color:var(--muted);font-size:12px;margin-top:4px}
+.profileWorkActions{display:flex;gap:8px;margin-top:10px}
 .userCard{
   display:flex;align-items:center;gap:10px;
   border:1px solid var(--border);
@@ -400,6 +417,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   .galleryGrid{grid-template-columns:repeat(2, minmax(0, 1fr))}
   .assetRow .asset{flex-basis:110px}
   .profileLists{grid-template-columns:1fr}
+  .profileDesigns{grid-template-columns:repeat(2, minmax(0, 1fr))}
 }
 @media (max-width: 640px){
   .container{padding:12px}
@@ -413,4 +431,5 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 @media (max-width: 420px){
   .assetRow .asset{flex-basis:96px}
   .galleryGrid{grid-template-columns:1fr}
+  .profileDesigns{grid-template-columns:1fr}
 }

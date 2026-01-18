@@ -1,10 +1,134 @@
-import {
-  collection, doc, addDoc, getDocs, query, orderBy, limit,
+﻿import {
+  collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit,
   serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl }) {
+export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl, profileModalEl, profileModalBodyEl }) {
   const designsCol = collection(db, "designs");
+  let cachedDocs = [];
+  let currentFilter = "all";
+  let filterOptions = [];
+  const profileCache = new Map();
+
+  function extractMobbyNames(state) {
+    const names = new Set();
+    const objects = Array.isArray(state?.objects) ? state.objects : [];
+    for (const o of objects) {
+      if (o?.type !== "img" || typeof o.name !== "string") continue;
+      if (!/モビ[ィー]/.test(o.name)) continue;
+      names.add(o.name.replace(/モビィ/g, "モビー"));
+    }
+    return names;
+  }
+
+  function buildFilterOptions(items) {
+    const set = new Set();
+    for (const item of items) {
+      const names = extractMobbyNames(item.data?.state);
+      for (const name of names) set.add(name);
+    }
+    return Array.from(set);
+  }
+
+  function getUserBestRank(targetUid) {
+    if (!targetUid) return null;
+    for (let i = 0; i < cachedDocs.length; i += 1) {
+      if (cachedDocs[i]?.data?.uid === targetUid) {
+        const rank = i + 1;
+        if (rank <= 3) return rank;
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function getFallbackName(nextUid) {
+    if (!nextUid) return "user-unknown";
+    return `user-${nextUid.slice(0, 6)}`;
+  }
+
+  async function fetchProfile(targetUid) {
+    if (!targetUid) return null;
+    if (profileCache.has(targetUid)) return profileCache.get(targetUid);
+    try {
+      const ref = doc(db, "profiles", targetUid);
+      const snap = await getDoc(ref);
+      const data = snap.exists() ? snap.data() : null;
+      profileCache.set(targetUid, data);
+      return data;
+    } catch (e) {
+      console.warn("profile fetch failed", e);
+      profileCache.set(targetUid, null);
+      return null;
+    }
+  }
+
+  async function warmProfileCache(items) {
+    const ids = new Set();
+    for (const item of items) {
+      if (item?.data?.uid) ids.add(item.data.uid);
+    }
+    await Promise.all(Array.from(ids).map((id) => fetchProfile(id)));
+  }
+
+  async function isFollowing(targetUid) {
+    if (!uid || !targetUid || uid === targetUid) return false;
+    try {
+      const ref = doc(db, "profiles", uid, "following", targetUid);
+      const snap = await getDoc(ref);
+      return snap.exists();
+    } catch (e) {
+      console.warn("follow check failed", e);
+      return false;
+    }
+  }
+
+  async function toggleFollow(targetUid) {
+    if (!uid || !targetUid || uid === targetUid) return { isFollowing: false, followersCount: 0 };
+    const followingRef = doc(db, "profiles", uid, "following", targetUid);
+    const followerRef = doc(db, "profiles", targetUid, "followers", uid);
+    const myProfileRef = doc(db, "profiles", uid);
+    const targetProfileRef = doc(db, "profiles", targetUid);
+
+    let nextFollowing = false;
+    let nextFollowersCount = 0;
+    let nextFollowingCount = 0;
+
+    await runTransaction(db, async (tx) => {
+      const [followingSnap, mySnap, targetSnap] = await Promise.all([
+        tx.get(followingRef),
+        tx.get(myProfileRef),
+        tx.get(targetProfileRef)
+      ]);
+      const myCount = Number(mySnap.data()?.followingCount || 0);
+      const targetCount = Number(targetSnap.data()?.followersCount || 0);
+
+      if (followingSnap.exists()) {
+        tx.delete(followingRef);
+        tx.delete(followerRef);
+        nextFollowing = false;
+        nextFollowingCount = Math.max(0, myCount - 1);
+        nextFollowersCount = Math.max(0, targetCount - 1);
+      } else {
+        tx.set(followingRef, { createdAt: serverTimestamp() });
+        tx.set(followerRef, { createdAt: serverTimestamp() });
+        nextFollowing = true;
+        nextFollowingCount = myCount + 1;
+        nextFollowersCount = targetCount + 1;
+      }
+
+      tx.set(myProfileRef, { followingCount: nextFollowingCount }, { merge: true });
+      tx.set(targetProfileRef, { followersCount: nextFollowersCount }, { merge: true });
+    });
+
+    const cached = profileCache.get(targetUid);
+    if (cached) {
+      cached.followersCount = nextFollowersCount;
+      profileCache.set(targetUid, cached);
+    }
+
+    return { isFollowing: nextFollowing, followersCount: nextFollowersCount };
+  }
 
   function applyEffect(ctx, effect, effectColor, effectBlur) {
     if (!effect || effect === "none") {
@@ -57,7 +181,12 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
   async function renderStateToCanvas(state, canvas) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const size = canvas.width || 900;
+    const cssSize = canvas.width || 900;
+    let size = Number(state?.canvasW || state?.canvasH || 0);
+    if (!size) {
+      const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+      size = cssSize * dpr;
+    }
     canvas.width = size;
     canvas.height = size;
 
@@ -86,10 +215,12 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
       .filter((o) => o.type === "img" && (o.src || o.url))
       .map((o) => {
         const src = o.src || o.url;
-        return loadImage(src).then((img) => ({ id: o.id, img }));
+        return loadImage(src)
+          .then((img) => ({ id: o.id, img }))
+          .catch(() => null);
       });
 
-    const loadedImages = await Promise.all(imageLoads);
+    const loadedImages = (await Promise.all(imageLoads)).filter(Boolean);
     const imageMap = new Map(loadedImages.map((entry) => [entry.id, entry.img]));
 
     for (const o of objects) {
@@ -130,6 +261,26 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     }
   }
 
+  function renderCurrent() {
+    gridEl.innerHTML = "";
+
+    const filtered = cachedDocs.filter(({ data }) => {
+      if (currentFilter === "all") return true;
+      const names = extractMobbyNames(data?.state);
+      return names.has(currentFilter);
+    });
+
+    if (!filtered.length) {
+      statusEl.textContent = "まだ投稿がありません。";
+      return;
+    }
+
+    statusEl.textContent = "";
+    filtered.forEach((item, index) => {
+      gridEl.appendChild(renderCard(item.id, item.data, index + 1));
+    });
+  }
+
   async function fetchTop() {
     statusEl.textContent = "読み込み中...";
     gridEl.innerHTML = "";
@@ -137,29 +288,44 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     const q = query(designsCol, orderBy("likes", "desc"), limit(30));
     const snap = await getDocs(q);
 
-    if (snap.empty) {
-      statusEl.textContent = "まだ投稿がありません。";
-      return;
+    cachedDocs = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+    filterOptions = buildFilterOptions(cachedDocs);
+    await warmProfileCache(cachedDocs);
+    if (currentFilter !== "all" && !filterOptions.includes(currentFilter)) {
+      currentFilter = "all";
     }
-    statusEl.textContent = "";
-
-    for (const d of snap.docs) {
-      const data = d.data();
-      gridEl.appendChild(renderCard(d.id, data));
-    }
+    renderCurrent();
   }
 
-  function renderCard(id, data) {
+  function setFilter(next) {
+    currentFilter = next || "all";
+    renderCurrent();
+  }
+
+  function getFilterOptions() {
+    return ["all", ...filterOptions];
+  }
+
+  function renderCard(id, data, rank) {
     const el = document.createElement("div");
     el.className = "work";
 
     const title = escapeHtml(data.title || "Untitled");
     const likes = Number(data.likes || 0);
     const preview = data.thumb || data.imageUrl || "";
+    const profile = profileCache.get(data.uid);
+    const authorName = escapeHtml(profile?.displayName || getFallbackName(data.uid));
+    const authorPhoto = profile?.photoURL || "assets/watermark/mobby.png";
+    const rankBadge = rank && rank <= 3 ? `<div class="rankBadge rank${rank}">👑 ${rank}位</div>` : "";
 
     el.innerHTML = `
+      ${rankBadge}
       <img src="${preview}" alt="">
       <div class="workBody">
+        <button class="workAuthor" type="button" data-profile="1">
+          <img class="workAuthorAvatar" src="${authorPhoto}" alt="${authorName}のアイコン">
+          <span class="workAuthorName">${authorName}</span>
+        </button>
         <div class="workTitle">${title}</div>
         <div class="workMeta">👍 ${likes} / ${formatDate(data.createdAt)}</div>
         <div class="workActions">
@@ -170,12 +336,19 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     `;
 
     el.querySelector('[data-like="1"]').addEventListener("click", async () => {
+      if (!uid) {
+        alert("ログインが必要");
+        return;
+      }
       try { await toggleLike(id); await fetchTop(); }
       catch (e) { alert("いいねに失敗: " + e.message); }
     });
 
     el.querySelector('[data-open="1"]').addEventListener("click", async () => {
       await openModal(id, data);
+    });
+    el.querySelector('[data-profile="1"]').addEventListener("click", async () => {
+      await openProfileModal(data.uid);
     });
 
     return el;
@@ -202,11 +375,72 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     });
   }
 
+  async function openProfileModal(targetUid) {
+    if (!profileModalEl || !profileModalBodyEl) return;
+    if (!targetUid) return;
+    const profile = await fetchProfile(targetUid);
+    const name = escapeHtml(profile?.displayName || getFallbackName(targetUid));
+    const photo = profile?.photoURL || "assets/watermark/mobby.png";
+    const bio = escapeHtml(profile?.bio || "").replace(/\n/g, "<br>");
+    const followers = Number(profile?.followersCount || 0);
+    const following = Number(profile?.followingCount || 0);
+    const userRank = getUserBestRank(targetUid);
+    const rankBadge = userRank ? `<span class="rankBadge small rank${userRank}">👑 ${userRank}位</span>` : "";
+    const canFollow = !!uid && uid !== targetUid;
+    const followingState = canFollow ? await isFollowing(targetUid) : false;
+
+    profileModalBodyEl.innerHTML = `
+      <div class="profileModalHeader">
+        <img class="profileModalAvatar" src="${photo}" alt="${name}のアイコン">
+        <div class="profileModalMeta">
+          <div class="userName">${name}</div>
+          <div class="muted">uid: ${shortUid(targetUid)}</div>
+          <div class="profileModalCounts">
+            <span>フォロー中 <strong>${following}</strong></span>
+            <span>フォロワー <strong id="profileModalFollowers">${followers}</strong></span>
+          </div>
+        </div>
+        ${rankBadge}
+        ${canFollow ? `<button id="profileModalFollow" class="btn ${followingState ? "active" : ""}">${followingState ? "フォロー中" : "フォロー"}</button>` : ""}
+      </div>
+      <div class="profileModalBio">${bio || "<span class=\"muted\">ひとことはまだありません。</span>"}</div>
+    `;
+
+    profileModalEl.showModal();
+
+    const followBtn = profileModalBodyEl.querySelector("#profileModalFollow");
+    const followersEl = profileModalBodyEl.querySelector("#profileModalFollowers");
+    followBtn?.addEventListener("click", async () => {
+      if (!uid) {
+        alert("ログインが必要");
+        return;
+      }
+      try {
+        followBtn.disabled = true;
+        const result = await toggleFollow(targetUid);
+        followBtn.textContent = result.isFollowing ? "フォロー中" : "フォロー";
+        followBtn.classList.toggle("active", result.isFollowing);
+        if (followersEl) followersEl.textContent = String(result.followersCount);
+      } catch (e) {
+        alert("フォローに失敗: " + e.message);
+      } finally {
+        followBtn.disabled = false;
+      }
+    });
+  }
+
   async function openModal(designId, data) {
+    const authorProfile = await fetchProfile(data.uid);
+    const authorName = escapeHtml(authorProfile?.displayName || getFallbackName(data.uid));
+    const authorPhoto = authorProfile?.photoURL || "assets/watermark/mobby.png";
+    const authorFollowers = Number(authorProfile?.followersCount || 0);
+    const canFollow = !!uid && !!data.uid && uid !== data.uid;
+    const following = canFollow ? await isFollowing(data.uid) : false;
+
     const hasState = !!data?.state?.objects?.length || !!data?.state?.template;
     const previewMarkup = hasState
-      ? `<canvas id="previewCanvas" width="900" height="900" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)"></canvas>`
-      : `<img src="${data.imageUrl || ""}" alt="" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)">`;
+      ? `<canvas id="previewCanvas" class="previewMedia" width="900" height="900"></canvas>`
+      : `<img src="${data.imageUrl || ""}" alt="" class="previewMedia">`;
 
     modalBodyEl.innerHTML = `
       <div class="row" style="align-items:flex-start;">
@@ -214,9 +448,17 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
         <div style="flex:1;min-width:240px">
           <div style="font-weight:800;font-size:18px">${escapeHtml(data.title || "Untitled")}</div>
           <div class="muted">👍 ${Number(data.likes || 0)} / ${formatDate(data.createdAt)}</div>
+          <div class="authorRow">
+            <img src="${authorPhoto}" alt="${authorName}のアイコン">
+            <div class="authorMeta">
+              <div class="userName">${authorName}</div>
+              <div class="muted">uid: ${shortUid(data.uid)} / フォロワー <span id="authorFollowersCount">${authorFollowers}</span></div>
+            </div>
+            ${canFollow ? `<button id="followBtn" class="btn smallBtn ${following ? "active" : ""}">${following ? "フォロー中" : "フォロー"}</button>` : ""}
+          </div>
 
           <div class="row" style="margin-top:10px">
-            <input id="commentInput" class="input" maxlength="140" placeholder="コメントを書く（140文字まで）" style="flex:1">
+            <input id="commentInput" class="input" maxlength="140" placeholder="コメントを書く！（140文字まで）" style="flex:1">
             <button id="commentSend" class="btn primary">送信</button>
           </div>
 
@@ -235,6 +477,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     const listEl = modalBodyEl.querySelector("#commentList");
     const inputEl = modalBodyEl.querySelector("#commentInput");
     const sendBtn = modalBodyEl.querySelector("#commentSend");
+    const followBtn = modalBodyEl.querySelector("#followBtn");
+    const followersCountEl = modalBodyEl.querySelector("#authorFollowersCount");
 
     async function refreshComments() {
       listEl.innerHTML = `<div class="muted">読み込み中...</div>`;
@@ -243,7 +487,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
       const snap = await getDocs(q);
 
       if (snap.empty) {
-        listEl.innerHTML = `<div class="muted">コメントはまだありません。</div>`;
+        listEl.innerHTML = `<div class="muted">コメントがまだありません。</div>`;
         return;
       }
 
@@ -261,6 +505,10 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     }
 
     sendBtn.onclick = async () => {
+      if (!uid) {
+        alert("ログインが必要");
+        return;
+      }
       const text = (inputEl.value || "").trim();
       if (!text) return;
       inputEl.value = "";
@@ -268,6 +516,24 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
       await addDoc(commentsCol, { uid, text, createdAt: serverTimestamp() });
       await refreshComments();
     };
+
+    followBtn?.addEventListener("click", async () => {
+      if (!uid) {
+        alert("ログインが必要");
+        return;
+      }
+      try {
+        followBtn.disabled = true;
+        const result = await toggleFollow(data.uid);
+        followBtn.textContent = result.isFollowing ? "フォロー中" : "フォロー";
+        followBtn.classList.toggle("active", result.isFollowing);
+        if (followersCountEl) followersCountEl.textContent = String(result.followersCount);
+      } catch (e) {
+        alert("フォローに失敗: " + e.message);
+      } finally {
+        followBtn.disabled = false;
+      }
+    });
 
     await refreshComments();
   }
@@ -284,5 +550,5 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl 
     return d.toLocaleString("ja-JP");
   }
 
-  return { fetchTop };
+  return { fetchTop, setFilter, getFilterOptions };
 }
