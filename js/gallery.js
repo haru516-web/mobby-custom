@@ -30,6 +30,18 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     return Array.from(set);
   }
 
+  function getUserBestRank(targetUid) {
+    if (!targetUid) return null;
+    for (let i = 0; i < cachedDocs.length; i += 1) {
+      if (cachedDocs[i]?.data?.uid === targetUid) {
+        const rank = i + 1;
+        if (rank <= 3) return rank;
+        return null;
+      }
+    }
+    return null;
+  }
+
   function getFallbackName(nextUid) {
     if (!nextUid) return "user-unknown";
     return `user-${nextUid.slice(0, 6)}`;
@@ -254,9 +266,9 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     }
 
     statusEl.textContent = "";
-    for (const item of filtered) {
-      gridEl.appendChild(renderCard(item.id, item.data));
-    }
+    filtered.forEach((item, index) => {
+      gridEl.appendChild(renderCard(item.id, item.data, index + 1));
+    });
   }
 
   async function fetchTop() {
@@ -284,7 +296,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     return ["all", ...filterOptions];
   }
 
-  function renderCard(id, data) {
+  function renderCard(id, data, rank) {
     const el = document.createElement("div");
     el.className = "work";
 
@@ -293,8 +305,10 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const profile = profileCache.get(data.uid);
     const authorName = escapeHtml(profile?.displayName || getFallbackName(data.uid));
     const authorPhoto = profile?.photoURL || "assets/watermark/mobby.png";
+    const rankBadge = rank && rank <= 3 ? `<div class="rankBadge rank${rank}">👑 ${rank}位</div>` : "";
 
     el.innerHTML = `
+      ${rankBadge}
       <img src="${data.thumb}" alt="">
       <div class="workBody">
         <button class="workAuthor" type="button" data-profile="1">
@@ -359,6 +373,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const bio = escapeHtml(profile?.bio || "").replace(/\n/g, "<br>");
     const followers = Number(profile?.followersCount || 0);
     const following = Number(profile?.followingCount || 0);
+    const userRank = getUserBestRank(targetUid);
+    const rankBadge = userRank ? `<span class="rankBadge small rank${userRank}">👑 ${userRank}位</span>` : "";
     const canFollow = !!uid && uid !== targetUid;
     const followingState = canFollow ? await isFollowing(targetUid) : false;
 
@@ -373,6 +389,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
             <span>フォロワー <strong id="profileModalFollowers">${followers}</strong></span>
           </div>
         </div>
+        ${rankBadge}
         ${canFollow ? `<button id="profileModalFollow" class="btn ${followingState ? "active" : ""}">${followingState ? "フォロー中" : "フォロー"}</button>` : ""}
       </div>
       <div class="profileModalBio">${bio || "<span class=\"muted\">ひとことはまだありません。</span>"}</div>

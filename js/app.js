@@ -78,6 +78,7 @@ const profileSave = document.getElementById("profileSave");
 const profileStatus = document.getElementById("profileStatus");
 const profileFollowingCount = document.getElementById("profileFollowingCount");
 const profileFollowersCount = document.getElementById("profileFollowersCount");
+const profileRankBadge = document.getElementById("profileRankBadge");
 const followingList = document.getElementById("followingList");
 const followersList = document.getElementById("followersList");
 
@@ -446,6 +447,33 @@ function updateUserBadgeFromProfile(profile, user) {
   userBadge.textContent = name ? name : `uid: ${user.uid.slice(0, 6)}...`;
 }
 
+async function updateProfileRankBadge(targetUid) {
+  if (!profileRankBadge) return;
+  profileRankBadge.classList.add("hidden");
+  profileRankBadge.classList.remove("rank1", "rank2", "rank3");
+  if (!targetUid) return;
+  try {
+    const designsCol = collection(db, "designs");
+    const q = query(designsCol, orderBy("likes", "desc"), limit(3));
+    const snap = await getDocs(q);
+    let rank = null;
+    snap.docs.some((d, index) => {
+      if (d.data()?.uid === targetUid) {
+        rank = index + 1;
+        return true;
+      }
+      return false;
+    });
+    if (rank) {
+      profileRankBadge.textContent = `👑 ${rank}位`;
+      profileRankBadge.classList.remove("hidden");
+      profileRankBadge.classList.add(`rank${rank}`);
+    }
+  } catch (e) {
+    console.warn("profile rank fetch failed", e);
+  }
+}
+
 function ensureGallery(nextUid) {
   if (gallery && galleryUid === nextUid) return;
   galleryUid = nextUid;
@@ -635,6 +663,10 @@ async function loadProfileView() {
     if (profileAvatar) {
       profileAvatar.removeAttribute("src");
     }
+    if (profileRankBadge) {
+      profileRankBadge.classList.add("hidden");
+      profileRankBadge.classList.remove("rank1", "rank2", "rank3");
+    }
     setProfileUiEnabled(false);
     if (followingList) followingList.innerHTML = "";
     if (followersList) followersList.innerHTML = "";
@@ -658,6 +690,7 @@ async function loadProfileView() {
   }
   if (profileFollowingCount) profileFollowingCount.textContent = String(profile?.followingCount || 0);
   if (profileFollowersCount) profileFollowersCount.textContent = String(profile?.followersCount || 0);
+  await updateProfileRankBadge(uid);
 
   await refreshFollowingSet();
   await renderUserList("following", followingList);

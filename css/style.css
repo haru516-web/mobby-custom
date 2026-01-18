@@ -199,6 +199,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   gap:12px;
 }
 .work{
+  position:relative;
   border:1px solid var(--border);
   border-radius:20px;
   overflow:hidden;
@@ -229,6 +230,37 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 .workMeta{color:var(--muted);font-size:12px;margin-top:4px}
 .workActions{display:flex;gap:10px;margin-top:10px}
 .smallBtn{flex:1}
+.rankBadge{
+  position:absolute;
+  top:10px;
+  left:10px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  color:#3a1f15;
+  background:linear-gradient(180deg, rgba(255,224,153,.95), rgba(255,183,107,.95));
+  border:1px solid rgba(255,170,90,.7);
+  box-shadow:0 6px 14px rgba(122,84,58,.2);
+}
+.rankBadge.small{
+  position:static;
+  padding:4px 8px;
+  font-size:11px;
+  box-shadow:none;
+}
+.rankBadge.rank2{
+  background:linear-gradient(180deg, rgba(233,236,240,.95), rgba(192,198,206,.95));
+  border-color:rgba(170,176,184,.8);
+}
+.rankBadge.rank3{
+  background:linear-gradient(180deg, rgba(237,206,176,.95), rgba(209,152,111,.95));
+  border-color:rgba(188,130,92,.8);
+}
+.profileIdRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 .modal{border:none;background:transparent}
 .modal::backdrop{background:rgba(85,60,45,.30)}
