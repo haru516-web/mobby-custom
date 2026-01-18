@@ -12,7 +12,11 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   let rotateDrag = null;
   let erasing = null;
   let drawTool = "pen";
+  let pinch = null;
+  const activePointers = new Map();
   const sampleSpacing = 2;
+  const MIN_SCALE = 0.05;
+  const MAX_SCALE = 1.2;
   let history = [];
   let redoStack = [];
   let historyListener = null;
@@ -427,9 +431,41 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     return { x, y };
   }
 
+  function updatePointer(e) {
+    const { x, y } = toCanvasCoords(e);
+    activePointers.set(e.pointerId, { x, y, type: e.pointerType });
+    return { x, y };
+  }
+
+  function clampScale(value) {
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+  }
+
+  function maybeStartPinch() {
+    if (drawMode === "draw" || activePointers.size !== 2 || !selectedId) return false;
+    const o = objects.find(v => v.id === selectedId);
+    if (!o || o.type === "path") return false;
+    const points = Array.from(activePointers.values());
+    const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    pinch = {
+      id: o.id,
+      startDist: dist || 1,
+      startScale: o.s
+    };
+    drag = null;
+    rotateDrag = null;
+    drawing = null;
+    erasing = null;
+    return true;
+  }
+
   canvas.addEventListener("pointerdown", (e) => {
     canvas.setPointerCapture(e.pointerId);
-    const { x, y } = toCanvasCoords(e);
+    const { x, y } = updatePointer(e);
+    if (maybeStartPinch()) {
+      draw();
+      return;
+    }
     if (drawMode === "draw") {
       if (drawTool === "eraser") {
         erasing = { pointerId: e.pointerId, lastX: x, lastY: y };
@@ -484,6 +520,20 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   });
 
   canvas.addEventListener("pointermove", (e) => {
+    updatePointer(e);
+    if (pinch && activePointers.size === 2) {
+      const points = Array.from(activePointers.values());
+      const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      const o = objects.find(v => v.id === pinch.id);
+      if (o) {
+        const nextScale = clampScale(pinch.startScale * (dist / pinch.startDist));
+        if (o.s !== nextScale) {
+          o.s = nextScale;
+          draw();
+        }
+      }
+      return;
+    }
     if (erasing && erasing.pointerId === e.pointerId) {
       const { x, y } = toCanvasCoords(e);
       const samples = sampleAlongLine(erasing.lastX, erasing.lastY, x, y, sampleSpacing * DPR);
@@ -533,6 +583,12 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   });
 
   canvas.addEventListener("pointerup", (e) => {
+    activePointers.delete(e.pointerId);
+    if (pinch && activePointers.size < 2) {
+      pinch = null;
+      pushHistory();
+      return;
+    }
     if (erasing && erasing.pointerId === e.pointerId) {
       erasing = null;
       pushHistory();
@@ -552,10 +608,12 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     drag = null;
   });
   canvas.addEventListener("pointercancel", () => {
+    activePointers.clear();
     drawing = null;
     drag = null;
     rotateDrag = null;
     erasing = null;
+    pinch = null;
   });
 
   canvas.addEventListener("wheel", (e) => {
@@ -564,7 +622,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     const o = objects.find(v => v.id === selectedId);
     if (!o) return;
     const delta = Math.sign(e.deltaY) * -0.04;
-    o.s = Math.min(1.2, Math.max(0.05, o.s + delta));
+    o.s = clampScale(o.s + delta);
     draw();
     pushHistory();
   }, { passive: false });

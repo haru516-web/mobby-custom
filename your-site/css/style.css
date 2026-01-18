@@ -114,7 +114,7 @@ body{
   background:rgba(255,255,255,.55);
   margin:12px 0;
 }
-canvas{display:block;width:100%;height:auto}
+canvas{display:block;width:100%;height:auto;touch-action:none}
 
 .assetGrid{
   display:grid;
@@ -170,7 +170,22 @@ canvas{display:block;width:100%;height:auto}
 }
 .comment small{color:var(--muted)}
 @media (max-width: 900px){
+  .topbar{flex-wrap:wrap;gap:10px}
+  .tabs{order:2;width:100%;display:flex;justify-content:flex-start}
+  .right{order:3;width:100%;flex-wrap:wrap;justify-content:flex-start}
+  .brand{order:1}
   .grid2{grid-template-columns:1fr}
   .galleryGrid{grid-template-columns:repeat(2, minmax(0, 1fr))}
   .assetGrid{grid-template-columns:repeat(3, minmax(0, 1fr))}
+}
+@media (max-width: 640px){
+  .container{padding:12px}
+  .row{flex-direction:column;align-items:stretch}
+  .input,.select,.btn{width:100%}
+  .panelActions{width:100%}
+  .panelActions .btn{flex:1}
+}
+@media (max-width: 420px){
+  .assetGrid{grid-template-columns:repeat(2, minmax(0, 1fr))}
+  .galleryGrid{grid-template-columns:1fr}
 }
