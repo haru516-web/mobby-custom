@@ -83,9 +83,16 @@ modal?.addEventListener("click", (e) => {
 
 // ---- assets list ----
 const STICKERS = [
-  { name: "heart", url: "assets/stickers/heart.png" },
   { name: "Logo", url: "assets/stickers/Logo.png" },
-  { name: "star", url: "assets/stickers/star.png" },
+  { name: "キラキラ1", url: "assets/stickers/キラキラ１.PNG" },
+  { name: "一生友達", url: "assets/stickers/キラキラ２.PNG" },
+  { name: "キラキラ2", url: "assets/stickers/キラキラ３.PNG" },
+  { name: "ハートヒョウ柄", url: "assets/stickers/ハートヒョウ柄.PNG" },
+  { name: "ハート1", url: "assets/stickers/ハート１.PNG" },
+  { name: "ハート2", url: "assets/stickers/ハート２.PNG" },
+  { name: "ハート3", url: "assets/stickers/ハート３.PNG" },
+  { name: "心友", url: "assets/stickers/心友.PNG" },
+  { name: "星1", url: "assets/stickers/星１.PNG" },
   { name: "カップル自撮りモビィ", url: "assets/stickers/モビィ透過済女/カップル自撮りモビィ.png" },
   { name: "ストーリー撮影班モビィ", url: "assets/stickers/モビィ透過済女/ストーリー撮影班モビィ.png" },
   { name: "ストーリー匂わせモビィ", url: "assets/stickers/モビィ透過済女/ストーリー匂わせモビィ.png" },

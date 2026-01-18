@@ -648,13 +648,68 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
 
   function setAssets(assetList) {
     assetGrid.innerHTML = "";
+    const groups = [
+      { key: "mobby", label: "モビィ" },
+      { key: "lucky", label: "デコ" },
+      { key: "logo", label: "Logo" },
+    ];
+
+    const grouped = new Map(groups.map((g) => [g.key, []]));
+
     for (const a of assetList) {
-      const div = document.createElement("button");
-      div.className = "asset";
-      div.type = "button";
-      div.innerHTML = `<img src="${a.url}" alt=""><span>${a.name}</span>`;
-      div.addEventListener("click", () => addAsset(a.url, a.name));
-      assetGrid.appendChild(div);
+      const url = String(a.url || "");
+      const name = String(a.name || "");
+      let key = "lucky";
+      if (name === "Logo") {
+        key = "logo";
+      } else if (name.includes("モビィ") || url.includes("モビィ透過済")) {
+        key = "mobby";
+      }
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(a);
+    }
+
+    for (const group of groups) {
+      const items = grouped.get(group.key) || [];
+      const section = document.createElement("section");
+      section.className = "assetSection";
+
+      const header = document.createElement("button");
+      header.className = "assetSectionHeader";
+      header.type = "button";
+      header.innerHTML = `<span>${group.label}</span><span class="assetSectionCaret">▼</span>`;
+      section.appendChild(header);
+
+      const body = document.createElement("div");
+      body.className = "assetSectionBody hidden";
+
+      if (!items.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted assetEmpty";
+        empty.textContent = "なし";
+        body.appendChild(empty);
+      } else {
+        const grid = document.createElement("div");
+        grid.className = "assetGrid";
+        for (const a of items) {
+          const div = document.createElement("button");
+          div.className = "asset";
+          div.type = "button";
+          div.innerHTML = `<img src="${a.url}" alt=""><span>${a.name}</span>`;
+          div.addEventListener("click", () => addAsset(a.url, a.name));
+          grid.appendChild(div);
+        }
+        body.appendChild(grid);
+      }
+
+      header.addEventListener("click", () => {
+        const isOpen = !body.classList.contains("hidden");
+        body.classList.toggle("hidden", isOpen);
+        section.classList.toggle("open", !isOpen);
+      });
+
+      section.appendChild(body);
+      assetGrid.appendChild(section);
     }
   }
 
