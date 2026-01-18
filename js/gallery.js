@@ -181,7 +181,32 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
   async function renderStateToCanvas(state, canvas) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const size = canvas.width || 900;
+    const cssSize = canvas.width || 900;
+    let size = Number(state?.canvasW || state?.canvasH || 0);
+    if (!size) {
+      let sumX = 0;
+      let sumY = 0;
+      let count = 0;
+      const objects = Array.isArray(state?.objects) ? state.objects : [];
+      for (const o of objects) {
+        if (o.type === "path" && Array.isArray(o.points)) {
+          for (const p of o.points) {
+            sumX += p.x || 0;
+            sumY += p.y || 0;
+            count += 1;
+          }
+          continue;
+        }
+        if (typeof o.x === "number" && typeof o.y === "number") {
+          sumX += o.x;
+          sumY += o.y;
+          count += 1;
+        }
+      }
+      const avgX = count ? sumX / count : 0;
+      const avgY = count ? sumY / count : 0;
+      size = (avgX > cssSize * 0.8 || avgY > cssSize * 0.8) ? cssSize * 2 : cssSize;
+    }
     canvas.width = size;
     canvas.height = size;
 
@@ -210,10 +235,12 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
       .filter((o) => o.type === "img" && (o.src || o.url))
       .map((o) => {
         const src = o.src || o.url;
-        return loadImage(src).then((img) => ({ id: o.id, img }));
+        return loadImage(src)
+          .then((img) => ({ id: o.id, img }))
+          .catch(() => null);
       });
 
-    const loadedImages = await Promise.all(imageLoads);
+    const loadedImages = (await Promise.all(imageLoads)).filter(Boolean);
     const imageMap = new Map(loadedImages.map((entry) => [entry.id, entry.img]));
 
     for (const o of objects) {

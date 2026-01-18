@@ -922,7 +922,12 @@
         strokeWidth: o.strokeWidth || 0
       };
     });
-    return { template: templateUrl, objects: safeObjects };
+    return {
+      template: templateUrl,
+      canvasW: canvas.width,
+      canvasH: canvas.height,
+      objects: safeObjects
+    };
   }
 
   function setDrawMode(mode) {
