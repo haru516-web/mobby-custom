@@ -12,6 +12,7 @@
     <nav class="tabs">
       <button id="tabDesign" class="tab active">デザイン</button>
       <button id="tabGallery" class="tab">ランキング</button>
+      <button id="tabProfile" class="tab">プロフィール</button>
     </nav>
     <div class="right">
       <span id="userBadge" class="badge">login...</span>
@@ -203,6 +204,42 @@
         <div id="galleryStatus" class="muted"></div>
       </div>
     </section>
+
+    <!-- PROFILE -->
+    <section id="viewProfile" class="hidden">
+      <div class="card profileCard">
+        <div class="profileHeader">
+          <img id="profileAvatar" class="avatar profileAvatar" alt="プロフィール画像" />
+          <div class="profileMeta">
+            <div id="profileUid" class="muted">uid: -</div>
+            <div class="profileCounts">
+              <span><strong id="profileFollowingCount">0</strong> フォロー中</span>
+              <span><strong id="profileFollowersCount">0</strong> フォロワー</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label class="label" for="profileName">表示名</label>
+          <input id="profileName" class="input" maxlength="32" placeholder="表示名" />
+          <label class="label" for="profileBio">ひとこと</label>
+          <textarea id="profileBio" class="input textarea" rows="3" maxlength="160" placeholder="自己紹介"></textarea>
+          <button id="profileSave" class="btn primary" type="button">保存</button>
+        </div>
+        <div id="profileStatus" class="muted"></div>
+
+        <div class="profileLists">
+          <div>
+            <h3 class="profileListTitle">フォロー中</h3>
+            <div id="followingList" class="userList"></div>
+          </div>
+          <div>
+            <h3 class="profileListTitle">フォロワー</h3>
+            <div id="followersList" class="userList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Modal -->
@@ -210,6 +247,25 @@
     <div class="modalInner">
       <button id="modalClose" class="iconBtn" type="button">×</button>
       <div id="modalBody"></div>
+    </div>
+  </dialog>
+
+  <dialog id="profileModal" class="modal">
+    <div class="modalInner">
+      <button id="profileModalClose" class="iconBtn" type="button">×</button>
+      <div id="profileModalBody"></div>
+    </div>
+  </dialog>
+
+  <dialog id="nicknameModal" class="modal">
+    <div class="modalInner">
+      <h3 style="margin:0 0 8px;">ニックネーム登録</h3>
+      <p class="muted" style="margin:0 0 12px;">ランキングやプロフィールに表示されます。</p>
+      <div class="row" style="margin-top:0;">
+        <input id="nicknameInput" class="input" maxlength="32" placeholder="ニックネーム" style="flex:1" />
+        <button id="nicknameSave" class="btn primary" type="button">保存</button>
+      </div>
+      <div id="nicknameStatus" class="muted"></div>
     </div>
   </dialog>
 

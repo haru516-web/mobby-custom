@@ -2,14 +2,19 @@
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
-import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import {
+  collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
+  serverTimestamp, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
+const tabProfile = document.getElementById("tabProfile");
 const viewDesign = document.getElementById("viewDesign");
 const viewGallery = document.getElementById("viewGallery");
+const viewProfile = document.getElementById("viewProfile");
 
 const userBadge = document.getElementById("userBadge");
 
@@ -65,9 +70,27 @@ const btnRefresh = document.getElementById("btnRefresh");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
 
+const profileAvatar = document.getElementById("profileAvatar");
+const profileUid = document.getElementById("profileUid");
+const profileName = document.getElementById("profileName");
+const profileBio = document.getElementById("profileBio");
+const profileSave = document.getElementById("profileSave");
+const profileStatus = document.getElementById("profileStatus");
+const profileFollowingCount = document.getElementById("profileFollowingCount");
+const profileFollowersCount = document.getElementById("profileFollowersCount");
+const followingList = document.getElementById("followingList");
+const followersList = document.getElementById("followersList");
+
 const modal = document.getElementById("modal");
 const modalBody = document.getElementById("modalBody");
 const modalClose = document.getElementById("modalClose");
+const profileModal = document.getElementById("profileModal");
+const profileModalBody = document.getElementById("profileModalBody");
+const profileModalClose = document.getElementById("profileModalClose");
+const nicknameModal = document.getElementById("nicknameModal");
+const nicknameInput = document.getElementById("nicknameInput");
+const nicknameSave = document.getElementById("nicknameSave");
+const nicknameStatus = document.getElementById("nicknameStatus");
 const btnLogin = document.getElementById("btnLogin");
 const btnLogout = document.getElementById("btnLogout");
 const userAvatar = document.getElementById("userAvatar");
@@ -79,6 +102,14 @@ modal?.addEventListener("click", (e) => {
     e.clientX >= rect.left && e.clientX <= rect.right &&
     e.clientY >= rect.top && e.clientY <= rect.bottom;
   if (!inside) modal.close();
+});
+profileModalClose?.addEventListener("click", () => profileModal.close());
+profileModal?.addEventListener("click", (e) => {
+  const rect = profileModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) profileModal.close();
 });
 
 // ---- assets list ----
@@ -129,14 +160,26 @@ const STICKERS = [
 function showDesign() {
   tabDesign?.classList.add("active");
   tabGallery?.classList.remove("active");
+  tabProfile?.classList.remove("active");
   viewDesign?.classList.remove("hidden");
   viewGallery?.classList.add("hidden");
+  viewProfile?.classList.add("hidden");
 }
 function showGallery() {
   tabGallery?.classList.add("active");
   tabDesign?.classList.remove("active");
+  tabProfile?.classList.remove("active");
   viewGallery?.classList.remove("hidden");
   viewDesign?.classList.add("hidden");
+  viewProfile?.classList.add("hidden");
+}
+function showProfile() {
+  tabProfile?.classList.add("active");
+  tabDesign?.classList.remove("active");
+  tabGallery?.classList.remove("active");
+  viewProfile?.classList.remove("hidden");
+  viewDesign?.classList.add("hidden");
+  viewGallery?.classList.add("hidden");
 }
 
 // ---- watermark ----
@@ -354,11 +397,17 @@ setAdjustPanel("text");
 let gallery = null;
 let uid = "";
 let galleryUid = "";
+let followingSet = new Set();
+const profileCache = new Map();
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
   showGallery();
   await gallery?.fetchTop?.();
+});
+tabProfile?.addEventListener("click", async () => {
+  showProfile();
+  await loadProfileView();
 });
 btnRefresh?.addEventListener("click", async () => {
   await gallery?.fetchTop?.();
@@ -387,6 +436,16 @@ function syncAuthUi(user) {
 
 syncAuthUi(null);
 
+function updateUserBadgeFromProfile(profile, user) {
+  if (!userBadge) return;
+  if (!user) {
+    userBadge.textContent = "未ログイン";
+    return;
+  }
+  const name = profile?.displayName?.trim();
+  userBadge.textContent = name ? name : `uid: ${user.uid.slice(0, 6)}...`;
+}
+
 function ensureGallery(nextUid) {
   if (gallery && galleryUid === nextUid) return;
   galleryUid = nextUid;
@@ -396,16 +455,241 @@ function ensureGallery(nextUid) {
     gridEl: galleryGrid,
     statusEl: galleryStatus,
     modalEl: modal,
-    modalBodyEl: modalBody
+    modalBodyEl: modalBody,
+    profileModalEl: profileModal,
+    profileModalBodyEl: profileModalBody
   });
+}
+
+function getFallbackName(nextUid) {
+  if (!nextUid) return "user-unknown";
+  return `user-${nextUid.slice(0, 6)}`;
+}
+
+async function ensureProfileDoc(user) {
+  if (!user) return;
+  try {
+    const profileRef = doc(db, "profiles", user.uid);
+    const snap = await getDoc(profileRef);
+    const data = snap.exists() ? snap.data() : {};
+    const next = { updatedAt: serverTimestamp() };
+    if (!data.photoURL && user.photoURL) next.photoURL = user.photoURL;
+    if (!data.bio) next.bio = "";
+    if (!snap.exists()) {
+      next.createdAt = serverTimestamp();
+      next.followersCount = 0;
+      next.followingCount = 0;
+    }
+    await setDoc(profileRef, next, { merge: true });
+  } catch (e) {
+    console.warn("profile ensure failed", e);
+  }
+}
+
+async function fetchProfile(targetUid) {
+  if (!targetUid) return null;
+  if (profileCache.has(targetUid)) return profileCache.get(targetUid);
+  try {
+    const ref = doc(db, "profiles", targetUid);
+    const snap = await getDoc(ref);
+    const data = snap.exists() ? snap.data() : null;
+    profileCache.set(targetUid, data);
+    return data;
+  } catch (e) {
+    console.warn("profile fetch failed", e);
+    profileCache.set(targetUid, null);
+    return null;
+  }
+}
+
+async function refreshFollowingSet() {
+  if (!uid) {
+    followingSet = new Set();
+    return;
+  }
+  const col = collection(db, "profiles", uid, "following");
+  const q = query(col, orderBy("createdAt", "desc"), limit(50));
+  const snap = await getDocs(q);
+  followingSet = new Set(snap.docs.map((d) => d.id));
+}
+
+async function toggleFollow(targetUid) {
+  if (!uid || !targetUid || uid === targetUid) return false;
+  const followingRef = doc(db, "profiles", uid, "following", targetUid);
+  const followerRef = doc(db, "profiles", targetUid, "followers", uid);
+  const myProfileRef = doc(db, "profiles", uid);
+  const targetProfileRef = doc(db, "profiles", targetUid);
+
+  let nextFollowing = false;
+  let nextFollowersCount = 0;
+  let nextFollowingCount = 0;
+
+  await runTransaction(db, async (tx) => {
+    const [followingSnap, mySnap, targetSnap] = await Promise.all([
+      tx.get(followingRef),
+      tx.get(myProfileRef),
+      tx.get(targetProfileRef)
+    ]);
+    const myCount = Number(mySnap.data()?.followingCount || 0);
+    const targetCount = Number(targetSnap.data()?.followersCount || 0);
+
+    if (followingSnap.exists()) {
+      tx.delete(followingRef);
+      tx.delete(followerRef);
+      nextFollowing = false;
+      nextFollowingCount = Math.max(0, myCount - 1);
+      nextFollowersCount = Math.max(0, targetCount - 1);
+    } else {
+      tx.set(followingRef, { createdAt: serverTimestamp() });
+      tx.set(followerRef, { createdAt: serverTimestamp() });
+      nextFollowing = true;
+      nextFollowingCount = myCount + 1;
+      nextFollowersCount = targetCount + 1;
+    }
+
+    tx.set(myProfileRef, { followingCount: nextFollowingCount }, { merge: true });
+    tx.set(targetProfileRef, { followersCount: nextFollowersCount }, { merge: true });
+  });
+
+  const cached = profileCache.get(targetUid);
+  if (cached) {
+    cached.followersCount = nextFollowersCount;
+    profileCache.set(targetUid, cached);
+  }
+  return nextFollowing;
+}
+
+function setProfileUiEnabled(enabled) {
+  if (profileName) profileName.disabled = !enabled;
+  if (profileBio) profileBio.disabled = !enabled;
+  if (profileSave) profileSave.disabled = !enabled;
+}
+
+async function renderUserList(type, container) {
+  if (!container) return;
+  if (!uid) {
+    container.innerHTML = `<div class="muted">ログインが必要です。</div>`;
+    return;
+  }
+  const col = collection(db, "profiles", uid, type);
+  const q = query(col, orderBy("createdAt", "desc"), limit(30));
+  const snap = await getDocs(q);
+  if (snap.empty) {
+    container.innerHTML = `<div class="muted">まだいません。</div>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  for (const docSnap of snap.docs) {
+    const targetUid = docSnap.id;
+    const profile = await fetchProfile(targetUid);
+    const displayName = profile?.displayName || getFallbackName(targetUid);
+    const photoUrl = profile?.photoURL || "";
+
+    const card = document.createElement("div");
+    card.className = "userCard";
+
+    const avatar = document.createElement("img");
+    avatar.className = "userAvatar";
+    avatar.alt = `${displayName}のアイコン`;
+    if (photoUrl) avatar.src = photoUrl;
+
+    const meta = document.createElement("div");
+    meta.className = "userMeta";
+    const nameEl = document.createElement("div");
+    nameEl.className = "userName";
+    nameEl.textContent = displayName;
+    const idEl = document.createElement("div");
+    idEl.className = "userId";
+    idEl.textContent = `uid: ${targetUid.slice(0, 6)}...`;
+    meta.appendChild(nameEl);
+    meta.appendChild(idEl);
+
+    const btn = document.createElement("button");
+    btn.className = "btn smallBtn";
+    if (targetUid === uid) {
+      btn.textContent = "あなた";
+      btn.disabled = true;
+    } else {
+      const isFollowing = followingSet.has(targetUid);
+      btn.textContent = isFollowing ? (type === "following" ? "解除" : "フォロー中") : "フォロー";
+      btn.classList.toggle("active", isFollowing && type !== "following");
+      btn.addEventListener("click", async () => {
+        await toggleFollow(targetUid);
+        await loadProfileView();
+      });
+    }
+
+    card.appendChild(avatar);
+    card.appendChild(meta);
+    card.appendChild(btn);
+    container.appendChild(card);
+  }
+}
+
+async function loadProfileView() {
+  if (!viewProfile || viewProfile.classList.contains("hidden")) return;
+  if (!uid) {
+    if (profileStatus) profileStatus.textContent = "ログインが必要です。";
+    if (profileUid) profileUid.textContent = "uid: -";
+    if (profileAvatar) {
+      profileAvatar.removeAttribute("src");
+    }
+    setProfileUiEnabled(false);
+    if (followingList) followingList.innerHTML = "";
+    if (followersList) followersList.innerHTML = "";
+    if (profileFollowingCount) profileFollowingCount.textContent = "0";
+    if (profileFollowersCount) profileFollowersCount.textContent = "0";
+    return;
+  }
+
+  setProfileUiEnabled(true);
+  if (profileStatus) profileStatus.textContent = "読み込み中...";
+
+  const profile = await fetchProfile(uid);
+  const displayName = profile?.displayName || getFallbackName(uid);
+  if (profileName) profileName.value = displayName;
+  if (profileBio) profileBio.value = profile?.bio || "";
+  if (profileUid) profileUid.textContent = `uid: ${uid.slice(0, 6)}...`;
+  if (profileAvatar) {
+    const url = profile?.photoURL || auth.currentUser?.photoURL || "";
+    if (url) profileAvatar.src = url;
+    else profileAvatar.removeAttribute("src");
+  }
+  if (profileFollowingCount) profileFollowingCount.textContent = String(profile?.followingCount || 0);
+  if (profileFollowersCount) profileFollowersCount.textContent = String(profile?.followersCount || 0);
+
+  await refreshFollowingSet();
+  await renderUserList("following", followingList);
+  await renderUserList("followers", followersList);
+
+  if (profileStatus) profileStatus.textContent = "";
+}
+
+function openNicknameModal(currentName) {
+  if (!nicknameModal || !nicknameInput) return;
+  nicknameInput.value = currentName || "";
+  if (nicknameStatus) nicknameStatus.textContent = "";
+  nicknameModal.showModal();
+  nicknameInput.focus();
 }
 
 onAuthStateChanged(auth, async (user) => {
   uid = user?.uid || "";
   syncAuthUi(user);
+  await ensureProfileDoc(user);
+  profileCache.clear();
+  const profile = await fetchProfile(uid);
+  updateUserBadgeFromProfile(profile, user);
   ensureGallery(uid);
   if (viewGallery && !viewGallery.classList.contains("hidden")) {
     await gallery?.fetchTop?.();
+  }
+  if (viewProfile && !viewProfile.classList.contains("hidden")) {
+    await loadProfileView();
+  }
+  if (user && (!profile?.displayName || !profile.displayName.trim())) {
+    openNicknameModal("");
   }
 });
 
@@ -443,6 +727,48 @@ btnLogout?.addEventListener("click", async () => {
     syncAuthUi(auth.currentUser);
   } finally {
     if (btnLogout) btnLogout.disabled = false;
+  }
+});
+
+nicknameSave?.addEventListener("click", async () => {
+  if (!uid) {
+    alert("ログインが必要");
+    return;
+  }
+  const name = (nicknameInput?.value || "").trim();
+  if (!name) {
+    if (nicknameStatus) nicknameStatus.textContent = "ニックネームを入力してください。";
+    return;
+  }
+  try {
+    if (nicknameSave) nicknameSave.disabled = true;
+    if (nicknameStatus) nicknameStatus.textContent = "保存中...";
+    const profileRef = doc(db, "profiles", uid);
+    let needsInit = false;
+    try {
+      const snap = await getDoc(profileRef);
+      needsInit = !snap.exists();
+    } catch (_) {
+      needsInit = true;
+    }
+    const payload = { displayName: name, updatedAt: serverTimestamp() };
+    if (needsInit) {
+      payload.createdAt = serverTimestamp();
+      payload.followersCount = 0;
+      payload.followingCount = 0;
+      payload.bio = "";
+    }
+    await setDoc(profileRef, payload, { merge: true });
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), displayName: name });
+    if (profileName) profileName.value = name;
+    updateUserBadgeFromProfile({ displayName: name }, auth.currentUser);
+    if (nicknameStatus) nicknameStatus.textContent = "保存しました。";
+    nicknameModal?.close();
+  } catch (e) {
+    alert("ニックネーム保存に失敗: " + e.message);
+    if (nicknameStatus) nicknameStatus.textContent = "";
+  } finally {
+    if (nicknameSave) nicknameSave.disabled = false;
   }
 });
 
@@ -499,5 +825,32 @@ btnPublish?.addEventListener("click", async () => {
     if (publishStatus) publishStatus.textContent = "";
   } finally {
     btnPublish.disabled = false;
+  }
+});
+
+profileSave?.addEventListener("click", async () => {
+  if (!uid) {
+    alert("ログインが必要");
+    return;
+  }
+  try {
+    if (profileSave) profileSave.disabled = true;
+    if (profileStatus) profileStatus.textContent = "保存中...";
+    const name = (profileName?.value || "").trim() || getFallbackName(uid);
+    const bio = (profileBio?.value || "").trim();
+    const profileRef = doc(db, "profiles", uid);
+    await setDoc(profileRef, {
+      displayName: name,
+      bio,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), displayName: name, bio });
+    updateUserBadgeFromProfile({ displayName: name }, auth.currentUser);
+    if (profileStatus) profileStatus.textContent = "保存しました。";
+  } catch (e) {
+    alert("プロフィール保存に失敗: " + e.message);
+    if (profileStatus) profileStatus.textContent = "";
+  } finally {
+    if (profileSave) profileSave.disabled = false;
   }
 });
