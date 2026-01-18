@@ -75,6 +75,28 @@ async function createThumbDataUrl(sourceCanvas, size = 320) {
   ctx.drawImage(sourceCanvas, 0, 0, size, size);
   return canvas.toDataURL("image/jpeg", 0.8);
 }
+
+async function createThumbDataUrlFromBlob(blob, size = 320) {
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+    ctx.drawImage(img, 0, 0, size, size);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return canvas.toDataURL("image/jpeg", 0.8);
+}
 const btnRefresh = document.getElementById("btnRefresh");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
@@ -945,7 +967,7 @@ btnPublish?.addEventListener("click", async () => {
     if (!blob) throw new Error("画像の書き出しに失敗しました");
 
     if (publishStatus) publishStatus.textContent = "サムネ生成中...";
-    const thumb = await createThumbDataUrl(canvas, 320);
+    const thumb = await createThumbDataUrlFromBlob(blob, 320);
     const state = editor.getState?.() || {};
 
     if (publishStatus) publishStatus.textContent = "投稿登録中...";
