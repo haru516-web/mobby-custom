@@ -9,17 +9,17 @@
 <body class="bg">
   <header class="topbar">
     <a class="brand" href="./index.html">← Home</a>
-    <nav class="tabs">
-      <button id="tabDesign" class="tab active">デザイン</button>
-      <button id="tabGallery" class="tab">ランキング</button>
-      <button id="tabProfile" class="tab">プロフィール</button>
-    </nav>
     <div class="right">
       <span id="userBadge" class="badge">login...</span>
       <button id="btnLogin" class="btn" type="button">Googleログイン</button>
       <img id="userAvatar" class="avatar hidden" alt="Googleアカウントのアイコン" />
       <button id="btnLogout" class="btn" type="button">ログアウト</button>
     </div>
+    <nav class="tabs">
+      <button id="tabDesign" class="tab active">デザイン</button>
+      <button id="tabGallery" class="tab">ランキング</button>
+      <button id="tabProfile" class="tab">プロフィール</button>
+    </nav>
   </header>
 
   <main class="container">
@@ -185,7 +185,7 @@
 
         <div id="panelSticker" class="panel hidden">
           <h3 style="margin-top:6px;">使える素材（ステッカー）</h3>
-          <div id="assetGrid" class="assetGrid"></div>
+          <div id="assetGrid" class="assetPicker"></div>
           <p class="muted">
             素材はこのフォルダに画像を追加すれば増やせます！<code>assets/stickers/</code>
           </p>
@@ -198,7 +198,12 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:center;">
           <h2 style="margin:0;">ランキング（いいね順）</h2>
-          <button id="btnRefresh" class="btn" type="button">更新</button>
+          <div class="row" style="margin:0;gap:8px;">
+            <select id="rankFilter" class="select" aria-label="モビー別ランキング">
+              <option value="all">すべて</option>
+            </select>
+            <button id="btnRefresh" class="btn" type="button">更新</button>
+          </div>
         </div>
         <div id="galleryGrid" class="galleryGrid"></div>
         <div id="galleryStatus" class="muted"></div>

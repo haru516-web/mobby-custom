@@ -14,9 +14,9 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const names = new Set();
     const objects = Array.isArray(state?.objects) ? state.objects : [];
     for (const o of objects) {
-      if (o?.type === "img" && typeof o.name === "string" && o.name.includes("モビィ")) {
-        names.add(o.name);
-      }
+      if (o?.type !== "img" || typeof o.name !== "string") continue;
+      if (!/モビ[ィー]/.test(o.name)) continue;
+      names.add(o.name.replace(/モビィ/g, "モビー"));
     }
     return names;
   }
