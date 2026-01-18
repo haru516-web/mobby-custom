@@ -4,7 +4,7 @@ import { createGallery } from "./gallery.js";
 
 import {
   collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
-  serverTimestamp, runTransaction
+  serverTimestamp, runTransaction, where, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
@@ -93,6 +93,8 @@ const profileFollowersBtn = document.getElementById("profileFollowersBtn");
 const profileRankBadge = document.getElementById("profileRankBadge");
 const followingList = document.getElementById("followingList");
 const followersList = document.getElementById("followersList");
+const profileDesigns = document.getElementById("profileDesigns");
+const profileDesignsStatus = document.getElementById("profileDesignsStatus");
 
 const modal = document.getElementById("modal");
 const modalBody = document.getElementById("modalBody");
@@ -475,7 +477,7 @@ async function updateProfileRankBadge(targetUid) {
       return false;
     });
     if (rank) {
-      profileRankBadge.textContent = `?? ${rank}位`;
+      profileRankBadge.textContent = `👑 ${rank}位`;
       profileRankBadge.classList.remove("hidden");
       profileRankBadge.classList.add(`rank${rank}`);
     }
@@ -502,6 +504,12 @@ function ensureGallery(nextUid) {
 function getFallbackName(nextUid) {
   if (!nextUid) return "user-unknown";
   return `user-${nextUid.slice(0, 6)}`;
+}
+
+function formatDate(ts) {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString("ja-JP");
 }
 
 async function ensureProfileDoc(user) {
@@ -679,6 +687,86 @@ async function openFollowList(type) {
   await renderUserList(type, followListBody);
 }
 
+async function renderProfileDesigns() {
+  if (!profileDesigns || !profileDesignsStatus) return;
+  if (!uid) {
+    profileDesigns.innerHTML = "";
+    profileDesignsStatus.textContent = "ログインが必要です。";
+    return;
+  }
+  profileDesignsStatus.textContent = "読み込み中...";
+  profileDesigns.innerHTML = "";
+  try {
+    const designsCol = collection(db, "designs");
+    const q = query(
+      designsCol,
+      where("uid", "==", uid),
+      orderBy("createdAt", "desc"),
+      limit(30)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      profileDesignsStatus.textContent = "まだ投稿がありません。";
+      return;
+    }
+    profileDesignsStatus.textContent = "";
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      const card = document.createElement("div");
+      card.className = "profileWork";
+
+      const img = document.createElement("img");
+      img.src = data.thumb || data.imageUrl || "";
+      img.alt = data.title || "Untitled";
+
+      const body = document.createElement("div");
+      body.className = "profileWorkBody";
+
+      const title = document.createElement("div");
+      title.className = "profileWorkTitle";
+      title.textContent = data.title || "Untitled";
+
+      const meta = document.createElement("div");
+      meta.className = "profileWorkMeta";
+      meta.textContent = `👍 ${Number(data.likes || 0)} / ${formatDate(data.createdAt)}`;
+
+      const actions = document.createElement("div");
+      actions.className = "profileWorkActions";
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn smallBtn";
+      delBtn.type = "button";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("この投稿を削除しますか？")) return;
+        try {
+          delBtn.disabled = true;
+          await deleteDoc(doc(db, "designs", docSnap.id));
+          card.remove();
+          if (!profileDesigns.children.length) {
+            profileDesignsStatus.textContent = "まだ投稿がありません。";
+          }
+        } catch (e) {
+          alert("削除に失敗: " + e.message);
+        } finally {
+          delBtn.disabled = false;
+        }
+      });
+
+      actions.appendChild(delBtn);
+      body.appendChild(title);
+      body.appendChild(meta);
+      body.appendChild(actions);
+      card.appendChild(img);
+      card.appendChild(body);
+      profileDesigns.appendChild(card);
+    }
+  } catch (e) {
+    console.warn("profile designs fetch failed", e);
+    profileDesignsStatus.textContent = "読み込みに失敗しました。";
+  }
+}
+
 async function loadProfileView() {
   if (!viewProfile || viewProfile.classList.contains("hidden")) return;
   if (!uid) {
@@ -715,6 +803,7 @@ async function loadProfileView() {
   await updateProfileRankBadge(uid);
 
   await refreshFollowingSet();
+  await renderProfileDesigns();
 
   if (profileStatus) profileStatus.textContent = "";
 }
