@@ -3,6 +3,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
 
   let templateImg = new Image();
+  let templateUrl = "";
   let objects = []; // {type:'img'|'text'|'path', ...}
   let selectedId = null;
   let drag = null;
@@ -103,6 +104,8 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
   function fitCanvas() {
     const cssW = canvas.clientWidth || 900;
     const cssH = cssW;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
     canvas.width = Math.floor(cssW * DPR);
     canvas.height = Math.floor(cssH * DPR);
     draw();
@@ -112,7 +115,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => { templateImg = img; draw(); resolve(); };
+      img.onload = () => { templateImg = img; templateUrl = url || ""; draw(); resolve(); };
       img.onerror = reject;
       img.src = url;
     });
@@ -128,6 +131,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
         id,
         img,
         name,
+        src: assetUrl,
         x: canvas.width / 2,
         y: canvas.height / 2,
         s: 0.35,
@@ -691,8 +695,19 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     if (e.key.toLowerCase() === "e") { o.r += 0.08; draw(); pushHistory(); }
   });
 
-  async function exportPngBlob() {
-    return new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1.0));
+  async function exportPngBlob(options = {}) {
+    const hideUi = !!options.hideUi;
+    const prevSelectedId = selectedId;
+    if (hideUi) {
+      selectedId = null;
+      draw();
+    }
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1.0));
+    if (hideUi) {
+      selectedId = prevSelectedId;
+      draw();
+    }
+    return blob;
   }
 
   function setAssets(assetList) {
@@ -764,6 +779,57 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
 
   function getUsedAssetNames() {
     return objects.filter(o => o.type === "img").map(o => o.name);
+  }
+
+  function getState() {
+    const safeObjects = objects.map((o) => {
+      if (o.type === "img") {
+        return {
+          type: "img",
+          id: o.id,
+          name: o.name || "",
+          src: o.src || "",
+          x: o.x,
+          y: o.y,
+          s: o.s,
+          r: o.r,
+          w: o.w,
+          h: o.h
+        };
+      }
+      if (o.type === "text") {
+        return {
+          type: "text",
+          id: o.id,
+          text: o.text || "",
+          fontFamily: o.fontFamily || "Noto Sans JP",
+          size: o.size,
+          color: o.color || "#ffffff",
+          x: o.x,
+          y: o.y,
+          s: o.s,
+          r: o.r,
+          effect: o.effect || "none",
+          effectColor: o.effectColor || "#00f5ff",
+          effectBlur: o.effectBlur || 0,
+          strokeColor: o.strokeColor || "#000000",
+          strokeWidth: o.strokeWidth || 0
+        };
+      }
+      return {
+        type: "path",
+        id: o.id,
+        points: Array.isArray(o.points) ? o.points.map((p) => ({ x: p.x, y: p.y })) : [],
+        color: o.color || "#000000",
+        size: o.size || 1,
+        effect: o.effect || "none",
+        effectColor: o.effectColor || "#00f5ff",
+        effectBlur: o.effectBlur || 0,
+        strokeColor: o.strokeColor || "#000000",
+        strokeWidth: o.strokeWidth || 0
+      };
+    });
+    return { template: templateUrl, objects: safeObjects };
   }
 
   function setDrawMode(mode) {
@@ -849,6 +915,7 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     draw,
     exportPngBlob,
     getUsedAssetNames,
+    getState,
     setDrawMode,
     setPenOptions,
     setEraserOptions,

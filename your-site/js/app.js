@@ -1,9 +1,8 @@
-﻿import { ensureAnonLogin, db, storage } from "./firebase.js";
+﻿import { ensureAnonLogin, db } from "./firebase.js";
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
 import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
@@ -60,6 +59,18 @@ const toolEraser = document.getElementById("toolEraser");
 
 const publishStatus = document.getElementById("publishStatus");
 
+async function createThumbDataUrl(pngBlob, size = 320) {
+  const base = await createImageBitmap(pngBlob);
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(base, 0, 0, size, size);
+  base.close?.();
+  return canvas.toDataURL("image/jpeg", 0.8);
+}
 const btnRefresh = document.getElementById("btnRefresh");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
@@ -91,40 +102,6 @@ function showGallery() {
   tabDesign?.classList.remove("active");
   viewGallery?.classList.remove("hidden");
   viewDesign?.classList.add("hidden");
-}
-
-// ---- watermark ----
-const WATERMARK_URL = "assets/watermark/mobby.png";
-
-async function addWatermarkToPngBlob(pngBlob, watermarkUrl = WATERMARK_URL) {
-  const base = await createImageBitmap(pngBlob);
-
-  const wmResp = await fetch(watermarkUrl);
-  if (!wmResp.ok) throw new Error("ウォーターマーク画像が読み込めません: " + watermarkUrl);
-  const wmBlob = await wmResp.blob();
-  const wm = await createImageBitmap(wmBlob);
-
-  const out = document.createElement("canvas");
-  out.width = base.width;
-  out.height = base.height;
-
-  const ctx = out.getContext("2d");
-  ctx.drawImage(base, 0, 0);
-
-  const margin = Math.round(Math.min(out.width, out.height) * 0.03);
-  const wmW = Math.round(out.width * 0.18);
-  const wmH = Math.round((wm.height / wm.width) * wmW);
-
-  ctx.globalAlpha = 0.35;
-  ctx.drawImage(wm, out.width - wmW - margin, out.height - wmH - margin, wmW, wmH);
-  ctx.globalAlpha = 1;
-
-  const resultBlob = await new Promise((resolve) => out.toBlob(resolve, "image/png"));
-  base.close?.();
-  wm.close?.();
-
-  if (!resultBlob) throw new Error("ウォーターマーク合成に失敗しました");
-  return resultBlob;
 }
 
 // ---- main ----
@@ -352,31 +329,14 @@ btnPublish?.addEventListener("click", async () => {
       return;
     }
 
-    let blob = await editor.exportPngBlob();
+    let blob = await editor.exportPngBlob({ hideUi: true });
     if (!blob) throw new Error("逕ｻ蜒冗函謌舌↓螟ｱ謨励＠縺ｾ縺励◆");
 
-    blob = await addWatermarkToPngBlob(blob);
-
-    if (publishStatus) publishStatus.textContent = "アップロード中...";
-
-    const id = crypto.randomUUID();
-    const path = `designs/${uid}/${id}.png`;
-    const fileRef = ref(storage, path);
-
-    await uploadBytes(fileRef, blob, { contentType: "image/png" });
-    const imageUrl = await getDownloadURL(fileRef);
-
-    if (publishStatus) publishStatus.textContent = "投稿登録中...";
+    if (publishStatus) publishStatus.textContent = "サムネ生成中...";`r`n`r`n    const thumb = await createThumbDataUrl(blob, 320);`r`n    const state = editor.getState?.() || {};`r`n`r`n    if (publishStatus) publishStatus.textContent = "投稿登録中...";
 
     const designsCol = collection(db, "designs");
     await addDoc(designsCol, {
-      title: (titleInput?.value || "").trim(),
-      imageUrl,
-      storagePath: path,
-      uid,
-      likes: 0,
-      createdAt: serverTimestamp(),
-      template: templateSelect?.value || ""
+      title: (titleInput?.value || "").trim(),`r`n      thumb,`r`n      state,`r`n      uid,`r`n      likes: 0,`r`n      createdAt: serverTimestamp()
     });
 
     if (publishStatus) publishStatus.textContent = "投稿しました。ランキングに反映されます。";
@@ -388,5 +348,6 @@ btnPublish?.addEventListener("click", async () => {
     btnPublish.disabled = false;
   }
 });
+
 
 

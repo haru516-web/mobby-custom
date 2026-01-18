@@ -207,8 +207,11 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
 
     const objects = Array.isArray(state?.objects) ? state.objects : [];
     const imageLoads = objects
-      .filter((o) => o.type === "img" && o.src)
-      .map((o) => loadImage(o.src).then((img) => ({ id: o.id, img })));
+      .filter((o) => o.type === "img" && (o.src || o.url))
+      .map((o) => {
+        const src = o.src || o.url;
+        return loadImage(src).then((img) => ({ id: o.id, img }));
+      });
 
     const loadedImages = await Promise.all(imageLoads);
     const imageMap = new Map(loadedImages.map((entry) => [entry.id, entry.img]));
@@ -302,6 +305,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
 
     const title = escapeHtml(data.title || "Untitled");
     const likes = Number(data.likes || 0);
+    const preview = data.thumb || data.imageUrl || "";
     const profile = profileCache.get(data.uid);
     const authorName = escapeHtml(profile?.displayName || getFallbackName(data.uid));
     const authorPhoto = profile?.photoURL || "assets/watermark/mobby.png";
@@ -309,7 +313,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
 
     el.innerHTML = `
       ${rankBadge}
-      <img src="${data.thumb}" alt="">
+      <img src="${preview}" alt="">
       <div class="workBody">
         <button class="workAuthor" type="button" data-profile="1">
           <img class="workAuthorAvatar" src="${authorPhoto}" alt="${authorName}のアイコン">
@@ -426,9 +430,14 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const canFollow = !!uid && !!data.uid && uid !== data.uid;
     const following = canFollow ? await isFollowing(data.uid) : false;
 
+    const hasState = !!data?.state?.objects?.length || !!data?.state?.template;
+    const previewMarkup = hasState
+      ? `<canvas id="previewCanvas" width="900" height="900" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)"></canvas>`
+      : `<img src="${data.imageUrl || ""}" alt="" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)">`;
+
     modalBodyEl.innerHTML = `
       <div class="row" style="align-items:flex-start;">
-        <canvas id="previewCanvas" width="900" height="900" style="width:360px;max-width:45vw;border-radius:14px;border:1px solid rgba(255,255,255,.12)"></canvas>
+        ${previewMarkup}
         <div style="flex:1;min-width:240px">
           <div style="font-weight:800;font-size:18px">${escapeHtml(data.title || "Untitled")}</div>
           <div class="muted">👍 ${Number(data.likes || 0)} / ${formatDate(data.createdAt)}</div>
@@ -454,7 +463,9 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     modalEl.showModal();
 
     const previewCanvas = modalBodyEl.querySelector("#previewCanvas");
-    await renderStateToCanvas(data.state, previewCanvas);
+    if (previewCanvas) {
+      await renderStateToCanvas(data.state, previewCanvas);
+    }
 
     const listEl = modalBodyEl.querySelector("#commentList");
     const inputEl = modalBodyEl.querySelector("#commentInput");

@@ -1,4 +1,4 @@
-﻿import { db, storage, auth, googleProvider } from "./firebase.js";
+﻿import { db, auth, googleProvider } from "./firebase.js";
 import { createEditor } from "./editor.js";
 import { createGallery } from "./gallery.js";
 
@@ -6,7 +6,6 @@ import {
   collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
   serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 const tabDesign = document.getElementById("tabDesign");
@@ -66,9 +65,22 @@ const toolEraser = document.getElementById("toolEraser");
 
 const publishStatus = document.getElementById("publishStatus");
 
+async function createThumbDataUrl(pngBlob, size = 320) {
+  const base = await createImageBitmap(pngBlob);
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(base, 0, 0, size, size);
+  base.close?.();
+  return canvas.toDataURL("image/jpeg", 0.8);
+}
 const btnRefresh = document.getElementById("btnRefresh");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
+const rankFilter = document.getElementById("rankFilter");
 
 const profileAvatar = document.getElementById("profileAvatar");
 const profileUid = document.getElementById("profileUid");
@@ -181,40 +193,6 @@ function showProfile() {
   viewProfile?.classList.remove("hidden");
   viewDesign?.classList.add("hidden");
   viewGallery?.classList.add("hidden");
-}
-
-// ---- watermark ----
-const WATERMARK_URL = "assets/watermark/mobby.png";
-
-async function addWatermarkToPngBlob(pngBlob, watermarkUrl = WATERMARK_URL) {
-  const base = await createImageBitmap(pngBlob);
-
-  const wmResp = await fetch(watermarkUrl);
-  if (!wmResp.ok) throw new Error("ウォーターマーク画像が読み込めません: " + watermarkUrl);
-  const wmBlob = await wmResp.blob();
-  const wm = await createImageBitmap(wmBlob);
-
-  const out = document.createElement("canvas");
-  out.width = base.width;
-  out.height = base.height;
-
-  const ctx = out.getContext("2d");
-  ctx.drawImage(base, 0, 0);
-
-  const margin = Math.round(Math.min(out.width, out.height) * 0.03);
-  const wmW = Math.round(out.width * 0.18);
-  const wmH = Math.round((wm.height / wm.width) * wmW);
-
-  ctx.globalAlpha = 0.35;
-  ctx.drawImage(wm, out.width - wmW - margin, out.height - wmH - margin, wmW, wmH);
-  ctx.globalAlpha = 1;
-
-  const resultBlob = await new Promise((resolve) => out.toBlob(resolve, "image/png"));
-  base.close?.();
-  wm.close?.();
-
-  if (!resultBlob) throw new Error("ウォーターマーク合成に失敗しました");
-  return resultBlob;
 }
 
 // ---- main ----
@@ -405,6 +383,7 @@ tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
   showGallery();
   await gallery?.fetchTop?.();
+  syncRankFilterOptions();
 });
 tabProfile?.addEventListener("click", async () => {
   showProfile();
@@ -412,6 +391,10 @@ tabProfile?.addEventListener("click", async () => {
 });
 btnRefresh?.addEventListener("click", async () => {
   await gallery?.fetchTop?.();
+  syncRankFilterOptions();
+});
+rankFilter?.addEventListener("change", () => {
+  gallery?.setFilter?.(rankFilter.value || "all");
 });
 
 function syncAuthUi(user) {
@@ -445,6 +428,20 @@ function updateUserBadgeFromProfile(profile, user) {
   }
   const name = profile?.displayName?.trim();
   userBadge.textContent = name ? name : `uid: ${user.uid.slice(0, 6)}...`;
+}
+function syncRankFilterOptions() {
+  if (!rankFilter || !gallery) return;
+  const options = gallery.getFilterOptions?.() || ["all"];
+  const current = rankFilter.value || "all";
+  rankFilter.innerHTML = "";
+  for (const opt of options) {
+    const el = document.createElement("option");
+    el.value = opt;
+    el.textContent = opt === "all" ? "すべて" : opt;
+    rankFilter.appendChild(el);
+  }
+  rankFilter.value = options.includes(current) ? current : "all";
+  gallery.setFilter?.(rankFilter.value || "all");
 }
 
 async function updateProfileRankBadge(targetUid) {
@@ -717,6 +714,7 @@ onAuthStateChanged(auth, async (user) => {
   ensureGallery(uid);
   if (viewGallery && !viewGallery.classList.contains("hidden")) {
     await gallery?.fetchTop?.();
+    syncRankFilterOptions();
   }
   if (viewProfile && !viewProfile.classList.contains("hidden")) {
     await loadProfileView();
@@ -824,31 +822,24 @@ btnPublish?.addEventListener("click", async () => {
       return;
     }
 
-    let blob = await editor.exportPngBlob();
+    let blob = await editor.exportPngBlob({ hideUi: true });
     if (!blob) throw new Error("画像の書き出しに失敗しました");
 
-    blob = await addWatermarkToPngBlob(blob);
+    if (publishStatus) publishStatus.textContent = "サムネ生成中...";
 
-    if (publishStatus) publishStatus.textContent = "アップロード中...";
-
-    const id = crypto.randomUUID();
-    const path = `designs/${uid}/${id}.png`;
-    const fileRef = ref(storage, path);
-
-    await uploadBytes(fileRef, blob, { contentType: "image/png" });
-    const imageUrl = await getDownloadURL(fileRef);
+    const thumb = await createThumbDataUrl(blob, 320);
+    const state = editor.getState?.() || {};
 
     if (publishStatus) publishStatus.textContent = "投稿登録中...";
 
     const designsCol = collection(db, "designs");
     await addDoc(designsCol, {
       title: (titleInput?.value || "").trim(),
-      imageUrl,
-      storagePath: path,
+      thumb,
+      state,
       uid,
       likes: 0,
-      createdAt: serverTimestamp(),
-      template: templateSelect?.value || ""
+      createdAt: serverTimestamp()
     });
 
     if (publishStatus) publishStatus.textContent = "投稿しました。ランキングに反映されます。";
@@ -887,3 +878,5 @@ profileSave?.addEventListener("click", async () => {
     if (profileSave) profileSave.disabled = false;
   }
 });
+
+
