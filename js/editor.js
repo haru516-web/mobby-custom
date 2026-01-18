@@ -215,6 +215,29 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     return { w, h };
   }
 
+  function getDeleteHandle(o) {
+    const bounds = getObjectBounds(o);
+    const offset = Math.max(10 * DPR, Math.min(bounds.w, bounds.h) * 0.08);
+    const radius = Math.max(12 * DPR, Math.min(bounds.w, bounds.h) * 0.09);
+    const localX = bounds.w / 2 + offset;
+    const localY = -bounds.h / 2 - offset;
+    const cos = Math.cos(o.r);
+    const sin = Math.sin(o.r);
+    return {
+      x: o.x + localX * cos - localY * sin,
+      y: o.y + localX * sin + localY * cos,
+      radius
+    };
+  }
+
+  function hitDeleteHandle(px, py, o) {
+    if (o.type !== "img") return false;
+    const handle = getDeleteHandle(o);
+    const dx = px - handle.x;
+    const dy = py - handle.y;
+    return (dx * dx + dy * dy) <= (handle.radius * handle.radius);
+  }
+
   function getRotationRing(px, py, o) {
     const dx = px - o.x;
     const dy = py - o.y;
@@ -421,6 +444,25 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
         ctx.fill();
         ctx.restore();
       }
+      if (o && o.type === "img") {
+        const handle = getDeleteHandle(o);
+        ctx.save();
+        ctx.fillStyle = "rgba(28,34,48,.9)";
+        ctx.strokeStyle = "rgba(255,255,255,.9)";
+        ctx.lineWidth = Math.max(2, 2 * DPR);
+        ctx.beginPath();
+        ctx.arc(handle.x, handle.y, handle.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        const cross = handle.radius * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(handle.x - cross, handle.y - cross);
+        ctx.lineTo(handle.x + cross, handle.y + cross);
+        ctx.moveTo(handle.x + cross, handle.y - cross);
+        ctx.lineTo(handle.x - cross, handle.y + cross);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
@@ -495,6 +537,13 @@ export function createEditor({ canvas, templateSelect, assetGrid }) {
     }
     const current = selectedId ? objects.find(v => v.id === selectedId) : null;
     if (current && current.type !== "path") {
+      if (hitDeleteHandle(x, y, current)) {
+        objects = objects.filter(v => v.id !== current.id);
+        selectedId = null;
+        draw();
+        pushHistory();
+        return;
+      }
       const ring = getRotationRing(x, y, current);
       if (ring) {
         rotateDrag = {
