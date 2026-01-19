@@ -12,13 +12,14 @@
     <div class="right">
       <span id="userBadge" class="badge">login...</span>
       <button id="btnLogin" class="btn" type="button">Googleログイン</button>
-      <img id="userAvatar" class="avatar hidden" alt="Googleアカウントのアイコン" />
+      <img id="userAvatar" class="avatar hidden" alt="ユーザーアイコン" />
       <button id="btnLogout" class="btn" type="button">ログアウト</button>
     </div>
     <nav class="tabs">
+      <button id="tabProfile" class="tab">プロフィール</button>
       <button id="tabDesign" class="tab active">デザイン</button>
       <button id="tabGallery" class="tab">ランキング</button>
-      <button id="tabProfile" class="tab">プロフィール</button>
+      <button id="tabTimeline" class="tab">タイムライン</button>
     </nav>
   </header>
 
@@ -209,16 +210,49 @@
         <div id="galleryStatus" class="muted"></div>
       </div>
     </section>
+    <section id="viewTimeline" class="hidden">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">タイムライン</h2>
+          <div class="row" style="margin:0;gap:8px;">
+            <select id="timelineFilter" class="select" aria-label="タイムラインフィルター">
+              <option value="all">すべて</option>
+            </select>
+            <button id="btnTimelineRefresh" class="btn" type="button">更新</button>
+          </div>
+        </div>
+        <div class="timelineTabs">
+          <button id="timelineTabRecommend" class="tab active" type="button">おすすめ</button>
+          <button id="timelineTabFollowing" class="tab" type="button">フォロー中</button>
+        </div>
+        <div class="timelinePanels">
+          <div id="timelinePanelRecommend" class="timelineBox">
+            <div id="timelineRecommend" class="galleryGrid"></div>
+            <div id="timelineRecommendStatus" class="muted"></div>
+          </div>
+          <div id="timelinePanelFollowing" class="timelineBox hidden">
+            <div id="timelineFollowing" class="galleryGrid"></div>
+            <div id="timelineFollowingStatus" class="muted"></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- PROFILE -->
     <section id="viewProfile" class="hidden">
       <div class="card profileCard">
         <div class="profileHeader">
-          <img id="profileAvatar" class="avatar profileAvatar" alt="プロフィール画像" />
+          <div class="profileAvatarWrap">
+            <div class="profileAvatarStage">
+              <img id="profileAvatar" class="avatar profileAvatar" alt="プロフィール画像" />
+              <button id="btnAvatar" class="btn avatarBtn" type="button">✎</button>
+            </div>
+          </div>
           <div class="profileMeta">
             <div class="profileIdRow">
-              <span id="profileUid" class="muted">uid: -</span>
               <span id="profileRankBadge" class="rankBadge small hidden" aria-label="ランキング"></span>
+              <button id="profileUid" class="countBtn" type="button">id: -</button>
+              <button id="idReset" class="btn iconMiniBtn" type="button" title="ID変更">✎</button>
             </div>
             <div class="profileCounts">
               <button id="profileFollowingBtn" class="countBtn" type="button"><strong id="profileFollowingCount">0</strong> フォロー中</button>
@@ -227,19 +261,23 @@
           </div>
         </div>
 
-        <div class="row">
-          <label class="label" for="profileName">表示名</label>
-          <input id="profileName" class="input" maxlength="32" placeholder="表示名" />
-          <label class="label" for="profileBio">ひとこと</label>
-          <textarea id="profileBio" class="input textarea" rows="3" maxlength="160" placeholder="自己紹介"></textarea>
-          <button id="profileSave" class="btn primary" type="button">保存</button>
+        <div class="profileBox">
+          <div class="row">
+            <label class="label" for="profileName">表示名</label>
+            <input id="profileName" class="input" maxlength="32" placeholder="表示名" />
+            <label class="label" for="profileBio">ひとこと</label>
+            <textarea id="profileBio" class="input textarea" rows="3" maxlength="160" placeholder="自己紹介"></textarea>
+            <button id="profileSave" class="btn primary" type="button">保存</button>
+          </div>
+          <div id="profileStatus" class="muted"></div>
         </div>
-        <div id="profileStatus" class="muted"></div>
 
-        <div class="profileDesignsSection">
-          <h3 class="profileListTitle">自分の投稿</h3>
-          <div id="profileDesignsStatus" class="muted"></div>
-          <div id="profileDesigns" class="profileDesigns"></div>
+        <div class="profileBox">
+          <div class="profileDesignsSection">
+            <h3 class="profileListTitle">自分の投稿</h3>
+            <div id="profileDesignsStatus" class="muted"></div>
+            <div id="profileDesigns" class="profileDesigns"></div>
+          </div>
         </div>
 
         <div class="profileLists hidden">
@@ -288,6 +326,28 @@
         <button id="nicknameSave" class="btn primary" type="button">保存</button>
       </div>
       <div id="nicknameStatus" class="muted"></div>
+    </div>
+  </dialog>
+
+  <dialog id="idModal" class="modal">
+    <div class="modalInner">
+      <button id="idModalClose" class="iconBtn" type="button">×</button>
+      <h3 style="margin:0 0 8px;">ユーザーID登録</h3>
+      <p class="muted" style="margin:0 0 12px;">ログイン後に必ず設定が必要です。英数字とアンダーバーのみ（3〜20文字）。</p>
+      <div class="row" style="margin-top:0;">
+        <input id="idInput" class="input" maxlength="20" placeholder="例: mobby_user01" style="flex:1" />
+        <button id="idSave" class="btn primary" type="button">保存</button>
+      </div>
+      <div id="idStatus" class="muted"></div>
+    </div>
+  </dialog>
+
+  <dialog id="avatarModal" class="modal">
+    <div class="modalInner avatarModalInner">
+      <button id="avatarModalClose" class="iconBtn" type="button">×</button>
+      <div class="avatarModalBody">
+        <iframe id="avatarFrame" src="avatar/index.html" title="アイコン作成" loading="lazy"></iframe>
+      </div>
     </div>
   </dialog>
 

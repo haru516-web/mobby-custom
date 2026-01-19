@@ -4,16 +4,18 @@ import { createGallery } from "./gallery.js";
 
 import {
   collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
-  serverTimestamp, runTransaction, where, deleteDoc
+  serverTimestamp, runTransaction, where, deleteDoc, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
 const tabProfile = document.getElementById("tabProfile");
+const tabTimeline = document.getElementById("tabTimeline");
 const viewDesign = document.getElementById("viewDesign");
 const viewGallery = document.getElementById("viewGallery");
 const viewProfile = document.getElementById("viewProfile");
+const viewTimeline = document.getElementById("viewTimeline");
 
 const userBadge = document.getElementById("userBadge");
 
@@ -101,9 +103,20 @@ const btnRefresh = document.getElementById("btnRefresh");
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryStatus = document.getElementById("galleryStatus");
 const rankFilter = document.getElementById("rankFilter");
+const timelineFilter = document.getElementById("timelineFilter");
+const btnTimelineRefresh = document.getElementById("btnTimelineRefresh");
+const timelineTabRecommend = document.getElementById("timelineTabRecommend");
+const timelineTabFollowing = document.getElementById("timelineTabFollowing");
+const timelinePanelRecommend = document.getElementById("timelinePanelRecommend");
+const timelinePanelFollowing = document.getElementById("timelinePanelFollowing");
+const timelineRecommend = document.getElementById("timelineRecommend");
+const timelineFollowing = document.getElementById("timelineFollowing");
+const timelineRecommendStatus = document.getElementById("timelineRecommendStatus");
+const timelineFollowingStatus = document.getElementById("timelineFollowingStatus");
 
 const profileAvatar = document.getElementById("profileAvatar");
 const profileUid = document.getElementById("profileUid");
+const idReset = document.getElementById("idReset");
 const profileName = document.getElementById("profileName");
 const profileBio = document.getElementById("profileBio");
 const profileSave = document.getElementById("profileSave");
@@ -132,9 +145,19 @@ const nicknameModal = document.getElementById("nicknameModal");
 const nicknameInput = document.getElementById("nicknameInput");
 const nicknameSave = document.getElementById("nicknameSave");
 const nicknameStatus = document.getElementById("nicknameStatus");
+const idModal = document.getElementById("idModal");
+const idInput = document.getElementById("idInput");
+const idSave = document.getElementById("idSave");
+const idStatus = document.getElementById("idStatus");
+const idModalClose = document.getElementById("idModalClose");
 const btnLogin = document.getElementById("btnLogin");
 const btnLogout = document.getElementById("btnLogout");
 const userAvatar = document.getElementById("userAvatar");
+
+const btnAvatar = document.getElementById("btnAvatar");
+const avatarModal = document.getElementById("avatarModal");
+const avatarModalClose = document.getElementById("avatarModalClose");
+const avatarFrame = document.getElementById("avatarFrame");
 
 modalClose?.addEventListener("click", () => modal.close());
 modal?.addEventListener("click", (e) => {
@@ -159,6 +182,27 @@ followListModal?.addEventListener("click", (e) => {
     e.clientX >= rect.left && e.clientX <= rect.right &&
     e.clientY >= rect.top && e.clientY <= rect.bottom;
   if (!inside) followListModal.close();
+});
+idModal?.addEventListener("cancel", (e) => {
+  e.preventDefault();
+});
+idModalClose?.addEventListener("click", () => {
+  if (requireProfileSetup) {
+    if (idStatus) idStatus.textContent = "ユーザーIDの登録が必要です。";
+    return;
+  }
+  idModal.close();
+});
+nicknameModal?.addEventListener("cancel", (e) => {
+  e.preventDefault();
+});
+avatarModalClose?.addEventListener("click", () => avatarModal.close());
+avatarModal?.addEventListener("click", (e) => {
+  const rect = avatarModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) avatarModal.close();
 });
 
 // ---- assets list ----
@@ -211,25 +255,49 @@ function showDesign() {
   tabDesign?.classList.add("active");
   tabGallery?.classList.remove("active");
   tabProfile?.classList.remove("active");
+  tabTimeline?.classList.remove("active");
   viewDesign?.classList.remove("hidden");
   viewGallery?.classList.add("hidden");
   viewProfile?.classList.add("hidden");
+  viewTimeline?.classList.add("hidden");
 }
 function showGallery() {
   tabGallery?.classList.add("active");
   tabDesign?.classList.remove("active");
   tabProfile?.classList.remove("active");
+  tabTimeline?.classList.remove("active");
   viewGallery?.classList.remove("hidden");
   viewDesign?.classList.add("hidden");
   viewProfile?.classList.add("hidden");
+  viewTimeline?.classList.add("hidden");
 }
 function showProfile() {
   tabProfile?.classList.add("active");
   tabDesign?.classList.remove("active");
   tabGallery?.classList.remove("active");
+  tabTimeline?.classList.remove("active");
   viewProfile?.classList.remove("hidden");
   viewDesign?.classList.add("hidden");
   viewGallery?.classList.add("hidden");
+  viewTimeline?.classList.add("hidden");
+}
+function showTimeline() {
+  tabTimeline?.classList.add("active");
+  tabDesign?.classList.remove("active");
+  tabGallery?.classList.remove("active");
+  tabProfile?.classList.remove("active");
+  viewTimeline?.classList.remove("hidden");
+  viewDesign?.classList.add("hidden");
+  viewGallery?.classList.add("hidden");
+  viewProfile?.classList.add("hidden");
+  showTimelinePanel("recommend");
+}
+function showTimelinePanel(panel) {
+  const isRecommend = panel === "recommend";
+  timelineTabRecommend?.classList.toggle("active", isRecommend);
+  timelineTabFollowing?.classList.toggle("active", !isRecommend);
+  timelinePanelRecommend?.classList.toggle("hidden", !isRecommend);
+  timelinePanelFollowing?.classList.toggle("hidden", isRecommend);
 }
 
 // ---- main ----
@@ -415,6 +483,11 @@ let uid = "";
 let galleryUid = "";
 let followingSet = new Set();
 const profileCache = new Map();
+let requireProfileSetup = false;
+let authReady = false;
+let timelineRecommendDocs = [];
+let timelineFollowingDocs = [];
+let timelineFilterValue = "all";
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
@@ -426,36 +499,70 @@ tabProfile?.addEventListener("click", async () => {
   showProfile();
   await loadProfileView();
 });
+tabTimeline?.addEventListener("click", () => {
+  showTimeline();
+  refreshTimeline();
+});
+timelineTabRecommend?.addEventListener("click", () => showTimelinePanel("recommend"));
+timelineTabFollowing?.addEventListener("click", () => showTimelinePanel("following"));
 btnRefresh?.addEventListener("click", async () => {
   await gallery?.fetchTop?.();
   syncRankFilterOptions();
 });
+btnTimelineRefresh?.addEventListener("click", () => {
+  refreshTimeline();
+});
 rankFilter?.addEventListener("change", () => {
   gallery?.setFilter?.(rankFilter.value || "all");
 });
+timelineFilter?.addEventListener("change", () => {
+  timelineFilterValue = timelineFilter.value || "all";
+  renderTimelineList(timelineRecommendDocs, timelineRecommend, timelineRecommendStatus);
+  renderTimelineList(timelineFollowingDocs, timelineFollowing, timelineFollowingStatus);
+});
+
+const DEFAULT_AVATAR_URL = "assets/watermark/mobby.png";
+
+function setAvatarImage(el, url, title) {
+  if (!el) return;
+  const finalUrl = url || DEFAULT_AVATAR_URL;
+  el.src = finalUrl;
+  if (title) el.title = title;
+  el.classList.remove("hidden");
+}
 
 function syncAuthUi(user) {
   if (userBadge) {
-    userBadge.textContent = user ? `uid: ${user.uid.slice(0, 6)}...` : "未ログイン";
+    userBadge.textContent = user ? "ログイン中" : "未ログイン";
   }
   btnLogin?.classList.toggle("hidden", !!user);
   btnLogout?.classList.toggle("hidden", !user);
-  if (userAvatar) {
-    const avatarUrl = user?.photoURL || "";
-    if (avatarUrl) {
-      userAvatar.src = avatarUrl;
-      userAvatar.alt = user?.displayName ? `${user.displayName}のアイコン` : "Googleアカウントのアイコン";
-      userAvatar.title = user?.displayName || user?.email || "";
-      userAvatar.classList.remove("hidden");
-    } else {
-      userAvatar.removeAttribute("src");
-      userAvatar.removeAttribute("title");
-      userAvatar.classList.add("hidden");
-    }
+  if (!user && userAvatar) {
+    userAvatar.removeAttribute("src");
+    userAvatar.removeAttribute("title");
+    userAvatar.classList.add("hidden");
+  }
+}
+
+function syncAvatarFromProfile(profile, user) {
+  if (!user) return;
+  const title = profile?.displayName || user?.displayName || user?.email || "";
+  const url = profile?.avatarData || "";
+  setAvatarImage(userAvatar, url, title);
+  if (profileAvatar && !viewProfile?.classList.contains("hidden")) {
+    setAvatarImage(profileAvatar, url, title);
   }
 }
 
 syncAuthUi(null);
+
+function getUserLabel(profile, user) {
+  if (profile?.username) return profile.username;
+  if (profile?.displayName) return profile.displayName;
+  if (user?.displayName) return user.displayName;
+  if (user?.email) return user.email;
+  return "";
+}
 
 function updateUserBadgeFromProfile(profile, user) {
   if (!userBadge) return;
@@ -463,8 +570,8 @@ function updateUserBadgeFromProfile(profile, user) {
     userBadge.textContent = "未ログイン";
     return;
   }
-  const name = profile?.displayName?.trim();
-  userBadge.textContent = name ? name : `uid: ${user.uid.slice(0, 6)}...`;
+  const name = getUserLabel(profile, user)?.trim();
+  userBadge.textContent = name ? name : "ログイン中";
 }
 function syncRankFilterOptions() {
   if (!rankFilter || !gallery) return;
@@ -479,6 +586,135 @@ function syncRankFilterOptions() {
   }
   rankFilter.value = options.includes(current) ? current : "all";
   gallery.setFilter?.(rankFilter.value || "all");
+}
+
+function extractTimelineMobbyNames(state) {
+  if (gallery?.extractMobbyNames) return gallery.extractMobbyNames(state);
+  const names = new Set();
+  const objects = Array.isArray(state?.objects) ? state.objects : [];
+  for (const o of objects) {
+    if (o?.type !== "img" || typeof o.name !== "string") continue;
+    if (!/モビ[ィー]/.test(o.name)) continue;
+    names.add(o.name.replace(/モビィ/g, "モビー"));
+  }
+  return names;
+}
+
+function buildTimelineFilterOptions(items) {
+  const set = new Set();
+  for (const item of items) {
+    const names = extractTimelineMobbyNames(item.data?.state);
+    for (const name of names) set.add(name);
+  }
+  return Array.from(set);
+}
+
+function syncTimelineFilterOptions(items) {
+  if (!timelineFilter) return;
+  const options = ["all", ...buildTimelineFilterOptions(items)];
+  timelineFilter.innerHTML = "";
+  for (const opt of options) {
+    const el = document.createElement("option");
+    el.value = opt;
+    el.textContent = opt === "all" ? "すべて" : opt;
+    timelineFilter.appendChild(el);
+  }
+  if (!options.includes(timelineFilterValue)) {
+    timelineFilterValue = "all";
+  }
+  timelineFilter.value = timelineFilterValue;
+}
+
+function filterTimelineDocs(items) {
+  if (timelineFilterValue === "all") return items;
+  return items.filter((item) => {
+    const names = extractTimelineMobbyNames(item.data?.state);
+    return names.has(timelineFilterValue);
+  });
+}
+
+function renderTimelineList(items, container, statusEl) {
+  if (!container) return;
+  const filtered = filterTimelineDocs(items);
+  container.innerHTML = "";
+  if (!filtered.length) {
+    if (statusEl) statusEl.textContent = "まだ投稿がありません。";
+    return;
+  }
+  if (statusEl) statusEl.textContent = "";
+  filtered.forEach((item) => {
+    if (gallery?.renderCard) {
+      container.appendChild(gallery.renderCard(item.id, item.data, null, { afterLike: refreshTimeline }));
+    }
+  });
+}
+
+async function fetchTimelineRecommend() {
+  if (timelineRecommendStatus) timelineRecommendStatus.textContent = "読み込み中...";
+  if (timelineRecommend) timelineRecommend.innerHTML = "";
+  const designsCol = collection(db, "designs");
+  const q = query(designsCol, orderBy("createdAt", "desc"), limit(30));
+  const snap = await getDocs(q);
+  timelineRecommendDocs = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+  if (timelineRecommendStatus) timelineRecommendStatus.textContent = "";
+}
+
+async function fetchTimelineFollowing() {
+  if (timelineFollowingStatus) timelineFollowingStatus.textContent = "読み込み中...";
+  if (timelineFollowing) timelineFollowing.innerHTML = "";
+  if (!uid) {
+    timelineFollowingDocs = [];
+    if (timelineFollowingStatus) timelineFollowingStatus.textContent = "ログインが必要です。";
+    return;
+  }
+  await refreshFollowingSet();
+  const ids = Array.from(followingSet);
+  if (!ids.length) {
+    timelineFollowingDocs = [];
+    if (timelineFollowingStatus) timelineFollowingStatus.textContent = "フォロー中がいません。";
+    return;
+  }
+  const designsCol = collection(db, "designs");
+  const chunkSize = 10;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    chunks.push(ids.slice(i, i + chunkSize));
+  }
+  const results = [];
+  for (const chunk of chunks) {
+    const q = query(
+      designsCol,
+      where("uid", "in", chunk),
+      orderBy("createdAt", "desc"),
+      limit(30)
+    );
+    const snap = await getDocs(q);
+    results.push(...snap.docs.map((d) => ({ id: d.id, data: d.data() })));
+  }
+  const seen = new Set();
+  const deduped = [];
+  for (const item of results) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    deduped.push(item);
+  }
+  deduped.sort((a, b) => {
+    const aTime = a.data?.createdAt?.toMillis ? a.data.createdAt.toMillis() : 0;
+    const bTime = b.data?.createdAt?.toMillis ? b.data.createdAt.toMillis() : 0;
+    return bTime - aTime;
+  });
+  timelineFollowingDocs = deduped.slice(0, 30);
+  if (timelineFollowingStatus) timelineFollowingStatus.textContent = "";
+}
+
+async function refreshTimeline() {
+  await Promise.all([fetchTimelineRecommend(), fetchTimelineFollowing()]);
+  if (gallery?.warmProfileCache) {
+    await gallery.warmProfileCache([...timelineRecommendDocs, ...timelineFollowingDocs]);
+  }
+  syncTimelineFilterOptions(timelineRecommendDocs);
+  renderTimelineList(timelineRecommendDocs, timelineRecommend, timelineRecommendStatus);
+  renderTimelineList(timelineFollowingDocs, timelineFollowing, timelineFollowingStatus);
 }
 
 async function updateProfileRankBadge(targetUid) {
@@ -499,7 +735,7 @@ async function updateProfileRankBadge(targetUid) {
       return false;
     });
     if (rank) {
-      profileRankBadge.textContent = `👑 ${rank}位`;
+      profileRankBadge.textContent = "👑";
       profileRankBadge.classList.remove("hidden");
       profileRankBadge.classList.add(`rank${rank}`);
     }
@@ -541,8 +777,8 @@ async function ensureProfileDoc(user) {
     const snap = await getDoc(profileRef);
     const data = snap.exists() ? snap.data() : {};
     const next = { updatedAt: serverTimestamp() };
-    if (!data.photoURL && user.photoURL) next.photoURL = user.photoURL;
     if (!data.bio) next.bio = "";
+    if (!data.email && user.email) next.email = user.email;
     if (!snap.exists()) {
       next.createdAt = serverTimestamp();
       next.followersCount = 0;
@@ -651,8 +887,8 @@ async function renderUserList(type, container) {
   for (const docSnap of snap.docs) {
     const targetUid = docSnap.id;
     const profile = await fetchProfile(targetUid);
-    const displayName = profile?.displayName || getFallbackName(targetUid);
-    const photoUrl = profile?.photoURL || "";
+    const displayName = profile?.username || profile?.displayName || getFallbackName(targetUid);
+    const photoUrl = profile?.avatarData || DEFAULT_AVATAR_URL;
 
     const card = document.createElement("div");
     card.className = "userCard";
@@ -667,11 +903,7 @@ async function renderUserList(type, container) {
     const nameEl = document.createElement("div");
     nameEl.className = "userName";
     nameEl.textContent = displayName;
-    const idEl = document.createElement("div");
-    idEl.className = "userId";
-    idEl.textContent = `uid: ${targetUid.slice(0, 6)}...`;
     meta.appendChild(nameEl);
-    meta.appendChild(idEl);
 
     const btn = document.createElement("button");
     btn.className = "btn smallBtn";
@@ -793,9 +1025,11 @@ async function loadProfileView() {
   if (!viewProfile || viewProfile.classList.contains("hidden")) return;
   if (!uid) {
     if (profileStatus) profileStatus.textContent = "ログインが必要です。";
-    if (profileUid) profileUid.textContent = "uid: -";
+    if (profileUid) profileUid.textContent = "id: -";
+    if (idReset) idReset.classList.add("hidden");
     if (profileAvatar) {
       profileAvatar.removeAttribute("src");
+      profileAvatar.classList.add("hidden");
     }
     if (profileRankBadge) {
       profileRankBadge.classList.add("hidden");
@@ -814,11 +1048,14 @@ async function loadProfileView() {
   const displayName = profile?.displayName || getFallbackName(uid);
   if (profileName) profileName.value = displayName;
   if (profileBio) profileBio.value = profile?.bio || "";
-  if (profileUid) profileUid.textContent = `uid: ${uid.slice(0, 6)}...`;
+  if (profileUid) {
+    const idText = profile?.username ? `id: ${profile.username}` : "id: -";
+    profileUid.textContent = idText;
+  }
+  if (idReset) idReset.classList.toggle("hidden", !profile?.username);
   if (profileAvatar) {
-    const url = profile?.photoURL || auth.currentUser?.photoURL || "";
-    if (url) profileAvatar.src = url;
-    else profileAvatar.removeAttribute("src");
+    const url = profile?.avatarData || "";
+    setAvatarImage(profileAvatar, url, displayName);
   }
   if (profileFollowingCount) profileFollowingCount.textContent = String(profile?.followingCount || 0);
   if (profileFollowersCount) profileFollowersCount.textContent = String(profile?.followersCount || 0);
@@ -830,6 +1067,39 @@ async function loadProfileView() {
   if (profileStatus) profileStatus.textContent = "";
 }
 
+async function saveProfileAvatar(dataUrl) {
+  if (!uid) {
+    throw new Error("ログインが必要です。");
+  }
+  const profileRef = doc(db, "profiles", uid);
+  await setDoc(profileRef, { avatarData: dataUrl, updatedAt: serverTimestamp() }, { merge: true });
+  profileCache.set(uid, { ...(profileCache.get(uid) || {}), avatarData: dataUrl });
+  setAvatarImage(userAvatar, dataUrl, profileName?.value || "");
+  if (profileAvatar) setAvatarImage(profileAvatar, dataUrl, profileName?.value || "");
+  return dataUrl;
+}
+
+function normalizeUsername(raw) {
+  return (raw || "").trim();
+}
+
+function validateUsername(name) {
+  if (!name) return "ユーザーIDを入力してください。";
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(name)) {
+    return "英数字とアンダーバーのみ（3〜20文字）で入力してください。";
+  }
+  return "";
+}
+
+function openIdModal(currentName) {
+  if (!idModal || !idInput) return;
+  idInput.value = currentName || "";
+  if (idStatus) idStatus.textContent = "";
+  if (idSave) idSave.disabled = !authReady;
+  idModal.showModal();
+  idInput.focus();
+}
+
 function openNicknameModal(currentName) {
   if (!nicknameModal || !nicknameInput) return;
   nicknameInput.value = currentName || "";
@@ -838,22 +1108,34 @@ function openNicknameModal(currentName) {
   nicknameInput.focus();
 }
 
+function isProfileSetupComplete(profile) {
+  return !!(profile?.username && profile?.displayName);
+}
+
 onAuthStateChanged(auth, async (user) => {
+  authReady = true;
   uid = user?.uid || "";
   syncAuthUi(user);
   await ensureProfileDoc(user);
   profileCache.clear();
-  const profile = await fetchProfile(uid);
+  let profile = await fetchProfile(uid);
+  requireProfileSetup = !!user && !isProfileSetupComplete(profile);
   updateUserBadgeFromProfile(profile, user);
+  syncAvatarFromProfile(profile, user);
   ensureGallery(uid);
   if (viewGallery && !viewGallery.classList.contains("hidden")) {
     await gallery?.fetchTop?.();
     syncRankFilterOptions();
   }
+  if (viewTimeline && !viewTimeline.classList.contains("hidden")) {
+    await refreshTimeline();
+  }
   if (viewProfile && !viewProfile.classList.contains("hidden")) {
     await loadProfileView();
   }
-  if (user && (!profile?.displayName || !profile.displayName.trim())) {
+  if (user && (!profile?.username || !profile.username.trim())) {
+    openIdModal("");
+  } else if (user && (!profile?.displayName || !profile.displayName.trim())) {
     openNicknameModal("");
   }
 });
@@ -864,6 +1146,102 @@ profileFollowingBtn?.addEventListener("click", async () => {
 profileFollowersBtn?.addEventListener("click", async () => {
   await openFollowList("followers");
 });
+btnAvatar?.addEventListener("click", () => {
+  if (!uid) {
+    alert("ログインが必要です。");
+    return;
+  }
+  avatarModal?.showModal();
+});
+
+idReset?.addEventListener("click", async () => {
+  if (!uid) {
+    alert("ログインが必要です。");
+    return;
+  }
+  const currentProfile = profileCache.get(uid) || await fetchProfile(uid);
+  const currentUsername = currentProfile?.username || "";
+  if (!currentUsername) {
+    if (profileStatus) profileStatus.textContent = "登録済みのIDがありません。";
+    return;
+  }
+  openIdModal(currentUsername);
+});
+
+window.addEventListener("message", async (event) => {
+  if (!event?.data || event.data.type !== "mobby-avatar") return;
+  const currentOrigin = window.location.origin;
+  if (currentOrigin !== "null" && event.origin !== currentOrigin) return;
+  try {
+    if (profileStatus) profileStatus.textContent = "アイコン保存中...";
+    await saveProfileAvatar(event.data.dataUrl);
+    if (profileStatus) profileStatus.textContent = "アイコンを保存しました。";
+    avatarModal?.close();
+  } catch (e) {
+    alert("アイコン保存に失敗: " + e.message);
+    if (profileStatus) profileStatus.textContent = "";
+  }
+});
+
+idSave?.addEventListener("click", async () => {
+  if (!authReady || !uid || !auth.currentUser) {
+    if (idStatus) idStatus.textContent = "ログイン確認中です。もう一度お試しください。";
+    return;
+  }
+  const raw = normalizeUsername(idInput?.value || "");
+  const err = validateUsername(raw);
+  if (err) {
+    if (idStatus) idStatus.textContent = err;
+    return;
+  }
+  try {
+    if (idSave) idSave.disabled = true;
+    if (idStatus) idStatus.textContent = "保存中...";
+    const normalized = raw.toLowerCase();
+    const usernameRef = doc(db, "usernames", normalized);
+    const profileRef = doc(db, "profiles", uid);
+    const currentProfile = profileCache.get(uid) || await fetchProfile(uid);
+    const prevUsername = currentProfile?.username || "";
+    const existingSnap = await getDoc(usernameRef);
+    if (existingSnap.exists()) {
+      const existing = existingSnap.data();
+      if (existing?.uid && existing.uid !== uid) {
+        if (idStatus) idStatus.textContent = "このIDは使用されています。";
+        return;
+      }
+    }
+    await setDoc(usernameRef, { uid, username: raw, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(profileRef, { username: raw, usernameLower: normalized, updatedAt: serverTimestamp() }, { merge: true });
+    if (prevUsername && prevUsername.toLowerCase() !== normalized) {
+      try {
+        await deleteDoc(doc(db, "usernames", prevUsername.toLowerCase()));
+      } catch (_) {
+        // ignore: old mapping might be missing or not owned by user
+      }
+    }
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), username: raw, usernameLower: normalized });
+    updateUserBadgeFromProfile({ ...(profileCache.get(uid) || {}), username: raw }, auth.currentUser);
+    if (profileUid) profileUid.textContent = `id: ${raw}`;
+    if (idStatus) idStatus.textContent = "保存しました。";
+    idModal?.close();
+    const current = profileCache.get(uid) || {};
+    requireProfileSetup = !isProfileSetupComplete(current);
+    if (!current.displayName) {
+      openNicknameModal("");
+    }
+  } catch (e) {
+    if (idStatus) {
+      if (e?.code === "permission-denied") {
+        idStatus.textContent = "保存権限がありません。ログイン状態かルールを確認してください。";
+      } else {
+        idStatus.textContent = e.message || "保存に失敗しました。";
+      }
+    }
+  } finally {
+    if (idSave) idSave.disabled = false;
+  }
+});
+
 
 btnLogin?.addEventListener("click", async () => {
   try {
@@ -936,6 +1314,7 @@ nicknameSave?.addEventListener("click", async () => {
     updateUserBadgeFromProfile({ displayName: name }, auth.currentUser);
     if (nicknameStatus) nicknameStatus.textContent = "保存しました。";
     nicknameModal?.close();
+    requireProfileSetup = !isProfileSetupComplete({ ...(profileCache.get(uid) || {}), displayName: name });
   } catch (e) {
     alert("ニックネーム保存に失敗: " + e.message);
     if (nicknameStatus) nicknameStatus.textContent = "";
@@ -1018,5 +1397,3 @@ profileSave?.addEventListener("click", async () => {
     if (profileSave) profileSave.disabled = false;
   }
 });
-
-

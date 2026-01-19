@@ -306,7 +306,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     return ["all", ...filterOptions];
   }
 
-  function renderCard(id, data, rank) {
+  function renderCard(id, data, rank, options = {}) {
     const el = document.createElement("div");
     el.className = "work";
 
@@ -314,8 +314,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const likes = Number(data.likes || 0);
     const preview = data.thumb || data.imageUrl || "";
     const profile = profileCache.get(data.uid);
-    const authorName = escapeHtml(profile?.displayName || getFallbackName(data.uid));
-    const authorPhoto = profile?.photoURL || "assets/watermark/mobby.png";
+    const authorName = escapeHtml(profile?.username || profile?.displayName || getFallbackName(data.uid));
+    const authorPhoto = profile?.avatarData || "assets/watermark/mobby.png";
     const rankBadge = rank && rank <= 3 ? `<div class="rankBadge rank${rank}">👑 ${rank}位</div>` : "";
 
     el.innerHTML = `
@@ -340,7 +340,14 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
         alert("ログインが必要");
         return;
       }
-      try { await toggleLike(id); await fetchTop(); }
+      try {
+        await toggleLike(id);
+        if (typeof options.afterLike === "function") {
+          await options.afterLike();
+        } else {
+          await fetchTop();
+        }
+      }
       catch (e) { alert("いいねに失敗: " + e.message); }
     });
 
@@ -379,8 +386,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     if (!profileModalEl || !profileModalBodyEl) return;
     if (!targetUid) return;
     const profile = await fetchProfile(targetUid);
-    const name = escapeHtml(profile?.displayName || getFallbackName(targetUid));
-    const photo = profile?.photoURL || "assets/watermark/mobby.png";
+    const name = escapeHtml(profile?.username || profile?.displayName || getFallbackName(targetUid));
+    const photo = profile?.avatarData || "assets/watermark/mobby.png";
     const bio = escapeHtml(profile?.bio || "").replace(/\n/g, "<br>");
     const followers = Number(profile?.followersCount || 0);
     const following = Number(profile?.followingCount || 0);
@@ -394,7 +401,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
         <img class="profileModalAvatar" src="${photo}" alt="${name}のアイコン">
         <div class="profileModalMeta">
           <div class="userName">${name}</div>
-          <div class="muted">uid: ${shortUid(targetUid)}</div>
+          <div class="muted">ID: ${name}</div>
           <div class="profileModalCounts">
             <span>フォロー中 <strong>${following}</strong></span>
             <span>フォロワー <strong id="profileModalFollowers">${followers}</strong></span>
@@ -431,8 +438,8 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
 
   async function openModal(designId, data) {
     const authorProfile = await fetchProfile(data.uid);
-    const authorName = escapeHtml(authorProfile?.displayName || getFallbackName(data.uid));
-    const authorPhoto = authorProfile?.photoURL || "assets/watermark/mobby.png";
+    const authorName = escapeHtml(authorProfile?.username || authorProfile?.displayName || getFallbackName(data.uid));
+    const authorPhoto = authorProfile?.avatarData || "assets/watermark/mobby.png";
     const authorFollowers = Number(authorProfile?.followersCount || 0);
     const canFollow = !!uid && !!data.uid && uid !== data.uid;
     const following = canFollow ? await isFollowing(data.uid) : false;
@@ -452,7 +459,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
             <img src="${authorPhoto}" alt="${authorName}のアイコン">
             <div class="authorMeta">
               <div class="userName">${authorName}</div>
-              <div class="muted">uid: ${shortUid(data.uid)} / フォロワー <span id="authorFollowersCount">${authorFollowers}</span></div>
+              <div class="muted">ID: ${authorName} / フォロワー <span id="authorFollowersCount">${authorFollowers}</span></div>
             </div>
             ${canFollow ? `<button id="followBtn" class="btn smallBtn ${following ? "active" : ""}">${following ? "フォロー中" : "フォロー"}</button>` : ""}
           </div>
@@ -550,5 +557,5 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     return d.toLocaleString("ja-JP");
   }
 
-  return { fetchTop, setFilter, getFilterOptions };
+  return { fetchTop, setFilter, getFilterOptions, renderCard, warmProfileCache, extractMobbyNames };
 }

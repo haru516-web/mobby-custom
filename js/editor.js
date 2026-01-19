@@ -118,7 +118,7 @@
       img.crossOrigin = "anonymous";
       img.onload = () => { templateImg = img; templateUrl = url || ""; draw(); resolve(); };
       img.onerror = reject;
-      img.src = url;
+      img.src = encodeURI(url);
     });
   }
 
@@ -137,6 +137,7 @@
         y: canvas.height / 2,
         s: 0.35,
         r: 0,
+        opacity: 1,
         w: img.width,
         h: img.height,
       });
@@ -144,7 +145,7 @@
       draw();
       pushHistory();
     };
-    img.src = assetUrl;
+    img.src = encodeURI(assetUrl);
   }
 
   function addText(text, fontFamily = "Noto Sans JP", size = 36, style = {}) {
@@ -163,6 +164,7 @@
       y: canvas.height / 2,
       s: 1,
       r: Number(style.r || 0),
+      opacity: Number.isFinite(style.opacity) ? style.opacity : 1,
       effect: effect.effect,
       effectColor: effect.effectColor,
       effectBlur: effect.effectBlur,
@@ -404,10 +406,13 @@
 
     for (const o of objects) {
       if (o.type === "path") {
+        ctx.save();
+        ctx.globalAlpha = Number.isFinite(o.opacity) ? o.opacity : 1;
         if (o.strokeWidth > 0) {
           drawStroke(o.points, o.size + o.strokeWidth * 2, o.strokeColor, null);
         }
         drawStroke(o.points, o.size, o.color, o);
+        ctx.restore();
         continue;
       }
 
@@ -415,6 +420,7 @@
       ctx.translate(o.x, o.y);
       ctx.rotate(o.r);
       ctx.scale(o.s, o.s);
+      ctx.globalAlpha = Number.isFinite(o.opacity) ? o.opacity : 1;
 
       if (o.type === "img") {
         ctx.drawImage(o.img, -o.w / 2, -o.h / 2);
@@ -886,6 +892,7 @@
           y: o.y,
           s: o.s,
           r: o.r,
+          opacity: Number.isFinite(o.opacity) ? o.opacity : 1,
           w: o.w,
           h: o.h
         };
@@ -902,6 +909,7 @@
           y: o.y,
           s: o.s,
           r: o.r,
+          opacity: Number.isFinite(o.opacity) ? o.opacity : 1,
           effect: o.effect || "none",
           effectColor: o.effectColor || "#00f5ff",
           effectBlur: o.effectBlur || 0,
@@ -915,6 +923,7 @@
         points: Array.isArray(o.points) ? o.points.map((p) => ({ x: p.x, y: p.y })) : [],
         color: o.color || "#000000",
         size: o.size || 1,
+        opacity: Number.isFinite(o.opacity) ? o.opacity : 1,
         effect: o.effect || "none",
         effectColor: o.effectColor || "#00f5ff",
         effectBlur: o.effectBlur || 0,
@@ -999,6 +1008,132 @@
     return true;
   }
 
+  function removeById(id) {
+    if (!id) return;
+    objects = objects.filter(v => v.id !== id);
+    if (selectedId === id) selectedId = null;
+    draw();
+    pushHistory();
+  }
+
+  function upsertImage(opts = {}) {
+    const id = opts.id || crypto.randomUUID();
+    const existing = objects.find(v => v.id === id);
+    const shouldApplyLayout = !!opts.forceLayout || !existing;
+    if (!opts.src) {
+      if (existing) removeById(id);
+      return Promise.resolve(null);
+    }
+    if (existing && existing.type === "img" && existing.src === opts.src) {
+      existing.name = opts.name || existing.name;
+      if (Number.isFinite(opts.opacity)) existing.opacity = opts.opacity;
+      if (shouldApplyLayout) {
+        if (Number.isFinite(opts.x)) existing.x = opts.x;
+        if (Number.isFinite(opts.y)) existing.y = opts.y;
+        if (Number.isFinite(opts.s)) existing.s = opts.s;
+        if (Number.isFinite(opts.r)) existing.r = opts.r;
+      }
+      draw();
+      pushHistory();
+      return Promise.resolve(id);
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        if (existing && existing.type === "img") {
+          existing.img = img;
+          existing.src = opts.src;
+          existing.name = opts.name || existing.name;
+          existing.w = img.width;
+          existing.h = img.height;
+          if (Number.isFinite(opts.opacity)) existing.opacity = opts.opacity;
+          if (shouldApplyLayout) {
+            if (Number.isFinite(opts.x)) existing.x = opts.x;
+            if (Number.isFinite(opts.y)) existing.y = opts.y;
+            if (Number.isFinite(opts.s)) existing.s = opts.s;
+            if (Number.isFinite(opts.r)) existing.r = opts.r;
+          }
+        } else {
+          objects.push({
+            type: "img",
+            id,
+            img,
+            name: opts.name || "",
+            src: opts.src,
+            x: Number.isFinite(opts.x) ? opts.x : canvas.width / 2,
+            y: Number.isFinite(opts.y) ? opts.y : canvas.height / 2,
+            s: Number.isFinite(opts.s) ? opts.s : 0.35,
+            r: Number.isFinite(opts.r) ? opts.r : 0,
+            opacity: Number.isFinite(opts.opacity) ? opts.opacity : 1,
+            w: img.width,
+            h: img.height
+          });
+        }
+        draw();
+        pushHistory();
+        resolve(id);
+      };
+      img.onerror = reject;
+      img.src = encodeURI(opts.src);
+    });
+  }
+
+  function upsertText(opts = {}) {
+    const id = opts.id || crypto.randomUUID();
+    const text = String(opts.text ?? "").trim();
+    const existing = objects.find(v => v.id === id);
+    if (!text) {
+      if (existing) removeById(id);
+      return id;
+    }
+    const shouldApplyLayout = !!opts.forceLayout || !existing;
+    if (existing && existing.type === "text") {
+      existing.text = text;
+      if (opts.fontFamily) existing.fontFamily = opts.fontFamily;
+      if (Number.isFinite(opts.size)) existing.size = opts.size;
+      if (opts.color) existing.color = opts.color;
+      if (Number.isFinite(opts.opacity)) existing.opacity = opts.opacity;
+      if (Number.isFinite(opts.r)) existing.r = opts.r;
+      if (shouldApplyLayout) {
+        if (Number.isFinite(opts.x)) existing.x = opts.x;
+        if (Number.isFinite(opts.y)) existing.y = opts.y;
+      }
+      const effect = normalizeEffectOptions(opts);
+      existing.effect = effect.effect;
+      existing.effectColor = effect.effectColor;
+      existing.effectBlur = effect.effectBlur;
+      existing.strokeColor = effect.strokeColor;
+      existing.strokeWidth = effect.strokeWidth;
+      draw();
+      pushHistory();
+      return id;
+    }
+
+    objects.push({
+      type: "text",
+      id,
+      text,
+      fontFamily: opts.fontFamily || "Noto Sans JP",
+      size: Number.isFinite(opts.size) ? opts.size : 36,
+      color: opts.color || "#ffffff",
+      x: Number.isFinite(opts.x) ? opts.x : canvas.width / 2,
+      y: Number.isFinite(opts.y) ? opts.y : canvas.height / 2,
+      s: 1,
+      r: Number.isFinite(opts.r) ? opts.r : 0,
+      opacity: Number.isFinite(opts.opacity) ? opts.opacity : 1,
+      effect: opts.effect || "none",
+      effectColor: opts.effectColor || "#00f5ff",
+      effectBlur: Number(opts.effectBlur || 0),
+      strokeColor: opts.strokeColor || "#000000",
+      strokeWidth: Number(opts.strokeWidth || 0)
+    });
+    draw();
+    pushHistory();
+    return id;
+  }
+
   templateSelect?.addEventListener("change", () => loadTemplate(templateSelect.value));
   window.addEventListener("resize", fitCanvas);
   history = [snapshot()];
@@ -1021,6 +1156,9 @@
     clearDraw,
     applyTextStyleToSelected,
     updateSelectedText,
+    removeById,
+    upsertImage,
+    upsertText,
     undo() {
       if (history.length <= 1) return false;
       const current = history.pop();
