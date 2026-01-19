@@ -260,6 +260,10 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   border-radius:50%;
   border:1px solid var(--border);
   object-fit:cover;
+  object-position:center;
+  flex:0 0 28px;
+  aspect-ratio:1/1;
+  display:block;
 }
 .workAuthorName{font-size:13px;font-weight:700}
 .workTitle{s{ text-decoration:none; } /* no-op */ }
