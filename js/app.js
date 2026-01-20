@@ -1207,9 +1207,13 @@ async function renderProfileDesigns() {
       actions.className = "profileWorkActions";
 
       const buyBtn = document.createElement("button");
-      buyBtn.className = "btn smallBtn purchaseBtn";
+      buyBtn.className = "btn smallBtn purchaseBtn locked";
       buyBtn.type = "button";
-      buyBtn.textContent = "購入";
+      buyBtn.setAttribute("aria-disabled", "true");
+      buyBtn.tabIndex = -1;
+      const buyLabel = document.createElement("span");
+      buyLabel.className = "purchaseLabel";
+      buyLabel.textContent = "購入";
 
       const delBtn = document.createElement("button");
       delBtn.className = "btn smallBtn deleteBtn";
@@ -1232,6 +1236,11 @@ async function renderProfileDesigns() {
         }
       });
 
+      const buyBadge = document.createElement("span");
+      buyBadge.className = "purchasePrice";
+      buyBadge.textContent = "100pt";
+      buyBtn.appendChild(buyLabel);
+      buyBtn.appendChild(buyBadge);
       actions.appendChild(buyBtn);
       actions.appendChild(delBtn);
       body.appendChild(title);

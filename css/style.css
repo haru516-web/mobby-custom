@@ -107,6 +107,10 @@ body{
   padding:10px 12px;border-radius:14px;
   outline:none;
 }
+.select{
+  appearance:none;
+  background-image:none;
+}
 .textarea{min-height:84px;resize:vertical}
 .label{color:var(--muted);font-size:12px}
 
@@ -247,7 +251,8 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   border-radius:999px;
   font-size:11px;
   font-weight:700;
-  color:#000000;
+  color:rgba(20,20,20,.85);
+  -webkit-text-fill-color:rgba(20,20,20,.85);
   background:#ffd400;
   border:1px solid #e4b900;
 }
@@ -611,11 +616,37 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 .profileWorkActions .purchaseBtn{
   flex:1 1 0;
   font-weight:600;
+  position:relative;
 }
 .profileWorkActions .deleteBtn{
   flex:0 0 25%;
   margin-left:auto;
   font-weight:800;
+}
+.profileWorkActions .purchaseBtn.locked{
+  cursor:not-allowed;
+  background:rgba(120,120,120,.35);
+  border-color:rgba(90,90,90,.35);
+  color:rgba(20,20,20,.85);
+  opacity:1;
+  filter:none;
+}
+.profileWorkActions .purchaseBtn.locked .purchaseLabel{
+  opacity:0.7;
+}
+.purchasePrice{
+  position:absolute;
+  top:6px;
+  right:8px;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  color:rgba(20,20,20,.85);
+  -webkit-text-fill-color:rgba(20,20,20,.85);
+  background:#ffd400;
+  border:1px solid #e4b900;
+  opacity:1;
 }
 .userCard{
   display:flex;align-items:center;gap:10px;
