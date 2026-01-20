@@ -399,14 +399,14 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   flex-direction:column;
   gap:6px;
   justify-content:flex-start;
-  height:72px;
+  min-height:72px;
   padding-top:10px;
 }
 .profileIdRow{
-  height:28px;
   display:flex;
   align-items:center;
   gap:8px;
+  flex-wrap:wrap;
 }
 .profileCounts{
   display:flex;
@@ -632,6 +632,11 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   .deviceMobile{display:inline}
   .home .title{font-size:28px}
   .home .lead{font-size:14px}
+  .profileMeta{min-height:auto;padding-top:0}
+  .profileIdRow{gap:6px;row-gap:6px}
+  .profileIdRow .countBtn{height:26px}
+  .inviteCodeBadge,.invitePointsBadge{height:22px;font-size:10px}
+  .inviteCopyBtn{height:22px;width:22px;min-width:22px}
 }
 @media (max-width: 420px){
   .assetRow .asset{flex-basis:96px}

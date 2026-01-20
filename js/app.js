@@ -1207,6 +1207,13 @@ function openIdModal(currentName) {
   idInput.focus();
 }
 
+function normalizeInviteCode(raw) {
+  return String(raw || "")
+    .replace(/[\\s\\u3000]/g, "")
+    .replace(/招待[:：]/g, "")
+    .toUpperCase();
+}
+
 function openInviteModal(code) {
   if (!inviteModal || !inviteInput) return;
   inviteInput.value = code || "";
@@ -1273,6 +1280,29 @@ profileFollowingBtn?.addEventListener("click", async () => {
 });
 profileFollowersBtn?.addEventListener("click", async () => {
   await openFollowList("followers");
+});
+profileUid?.addEventListener("click", async () => {
+  const currentProfile = profileCache.get(uid) || await fetchProfile(uid);
+  const username = currentProfile?.username || "";
+  if (!username) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(username);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = username;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    if (profileStatus) profileStatus.textContent = "IDをコピーしました。";
+  } catch (e) {
+    alert("コピーに失敗: " + e.message);
+  }
 });
 profileInviteCopy?.addEventListener("click", async () => {
   const currentProfile = profileCache.get(uid) || await fetchProfile(uid);
@@ -1529,7 +1559,7 @@ inviteSave?.addEventListener("click", async () => {
     alert("ログインが必要");
     return;
   }
-  const code = (inviteInput?.value || "").trim();
+  const code = normalizeInviteCode(inviteInput?.value || "");
   if (!code) {
     if (inviteStatus) inviteStatus.textContent = "招待コードを入力してください。";
     return;
@@ -1563,6 +1593,9 @@ inviteSave?.addEventListener("click", async () => {
       if (!inviterSnap.exists()) {
         throw new Error("招待コードが無効です。");
       }
+      if (inviterDoc.data()?.inviteIssuedCode !== code) {
+        throw new Error("招待コードが無効です。");
+      }
       tx.set(profileRef, {
         inviteCode: code,
         inviteInviterUid: inviterDoc.id,
@@ -1590,8 +1623,14 @@ inviteSave?.addEventListener("click", async () => {
     if (inviteStatus) inviteStatus.textContent = "保存しました。";
     inviteModal?.close();
   } catch (e) {
-    alert("招待コード保存に失敗: " + e.message);
-    if (inviteStatus) inviteStatus.textContent = "";
+    if (e?.code === "permission-denied") {
+      if (inviteStatus) inviteStatus.textContent = "保存権限がありません。ルールを確認してください。";
+    } else if (inviteStatus && e?.message) {
+      inviteStatus.textContent = e.message;
+    } else {
+      alert("招待コード保存に失敗: " + e.message);
+      if (inviteStatus) inviteStatus.textContent = "";
+    }
   } finally {
     if (inviteSave) inviteSave.disabled = false;
   }
