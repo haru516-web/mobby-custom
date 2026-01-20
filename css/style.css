@@ -37,6 +37,8 @@ body{
 .container{max-width:1100px;margin:0 auto;padding:18px;}
 .title{font-size:34px;margin:26px 0 6px;}
 .lead{color:var(--muted);margin:0 0 18px;}
+.home .card{display:flex;flex-direction:column;gap:10px}
+.home .btn{display:block;text-align:center}
 
 .topbar{
   position:sticky;top:0;z-index:10;
@@ -328,6 +330,24 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   position:relative;
   z-index:1;
 }
+.termsModalInner{width:min(720px, 92vw)}
+.inviteModalInner{width:min(620px, 92vw)}
+.termsContent{
+  max-height:48vh;
+  overflow:auto;
+  padding:12px;
+  border-radius:16px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.7);
+  margin-bottom:10px;
+}
+.termsAgreeRow{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:6px 0 10px;
+  font-size:13px;
+}
 .avatarModalInner{width:min(980px, 94vw)}
 .avatarModalBody{height:min(78vh, 760px)}
 .avatarModalBody iframe{
@@ -450,6 +470,26 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   line-height:24px;
   font-size:12px;
   white-space:nowrap;
+}
+.inviteCodeBadge{
+  display:inline-flex;
+  align-items:center;
+  height:24px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px dashed rgba(255,140,100,.55);
+  background:rgba(255,244,232,.8);
+  color:#5a3b2a;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.inviteCopyBtn{
+  height:24px;
+  width:24px;
+  min-width:24px;
+  padding:0;
+  font-size:12px;
 }
 .profileLists{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:14px}
 .profileListTitle{margin:0 0 6px;font-size:16px}
@@ -577,6 +617,8 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   .panelActions .btn{flex:1}
   .deviceDesktop{display:none}
   .deviceMobile{display:inline}
+  .home .title{font-size:28px}
+  .home .lead{font-size:14px}
 }
 @media (max-width: 420px){
   .assetRow .asset{flex-basis:96px}

@@ -144,6 +144,8 @@ const profileFollowersCount = document.getElementById("profileFollowersCount");
 const profileFollowingBtn = document.getElementById("profileFollowingBtn");
 const profileFollowersBtn = document.getElementById("profileFollowersBtn");
 const profileRankBadge = document.getElementById("profileRankBadge");
+const profileInviteCode = document.getElementById("profileInviteCode");
+const profileInviteCopy = document.getElementById("profileInviteCopy");
 const followingList = document.getElementById("followingList");
 const followersList = document.getElementById("followersList");
 const profileDesigns = document.getElementById("profileDesigns");
@@ -176,6 +178,18 @@ const btnAvatar = document.getElementById("btnAvatar");
 const avatarModal = document.getElementById("avatarModal");
 const avatarModalClose = document.getElementById("avatarModalClose");
 const avatarFrame = document.getElementById("avatarFrame");
+const termsModal = document.getElementById("termsModal");
+const termsModalClose = document.getElementById("termsModalClose");
+const termsContent = document.getElementById("termsContent");
+const termsAgreeRow = document.getElementById("termsAgreeRow");
+const termsAgree = document.getElementById("termsAgree");
+const termsAccept = document.getElementById("termsAccept");
+const inviteModal = document.getElementById("inviteModal");
+const inviteModalClose = document.getElementById("inviteModalClose");
+const inviteInput = document.getElementById("inviteInput");
+const inviteSave = document.getElementById("inviteSave");
+const inviteSkip = document.getElementById("inviteSkip");
+const inviteStatus = document.getElementById("inviteStatus");
 
 modalClose?.addEventListener("click", () => modal.close());
 modal?.addEventListener("click", (e) => {
@@ -221,6 +235,22 @@ avatarModal?.addEventListener("click", (e) => {
     e.clientX >= rect.left && e.clientX <= rect.right &&
     e.clientY >= rect.top && e.clientY <= rect.bottom;
   if (!inside) avatarModal.close();
+});
+termsModalClose?.addEventListener("click", () => termsModal.close());
+termsModal?.addEventListener("click", (e) => {
+  const rect = termsModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) termsModal.close();
+});
+inviteModalClose?.addEventListener("click", () => inviteModal.close());
+inviteModal?.addEventListener("click", (e) => {
+  const rect = inviteModal.querySelector(".modalInner").getBoundingClientRect();
+  const inside =
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom;
+  if (!inside) inviteModal.close();
 });
 
 // ---- assets list ----
@@ -506,6 +536,7 @@ let authReady = false;
 let timelineRecommendDocs = [];
 let timelineFollowingDocs = [];
 let timelineFilterValue = "all";
+let invitePrompted = false;
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
@@ -788,6 +819,18 @@ function formatDate(ts) {
   return d.toLocaleString("ja-JP");
 }
 
+function generateInviteCode(seed) {
+  const base = String(seed || "");
+  let hash = 2166136261;
+  for (let i = 0; i < base.length; i += 1) {
+    hash ^= base.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const hashPart = (hash >>> 0).toString(36).toUpperCase().padStart(6, "0").slice(0, 6);
+  const tail = base.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase().padStart(4, "0");
+  return `MOBBY-${hashPart}${tail}`;
+}
+
 async function ensureProfileDoc(user) {
   if (!user) return;
   try {
@@ -797,6 +840,10 @@ async function ensureProfileDoc(user) {
     const next = { updatedAt: serverTimestamp() };
     if (!data.bio) next.bio = "";
     if (!data.email && user.email) next.email = user.email;
+    if (!data.inviteIssuedCode) {
+      next.inviteIssuedCode = generateInviteCode(user.uid);
+      next.inviteIssuedAt = serverTimestamp();
+    }
     if (!snap.exists()) {
       next.createdAt = serverTimestamp();
       next.followersCount = 0;
@@ -1051,6 +1098,8 @@ async function loadProfileView() {
     if (profileStatus) profileStatus.textContent = "ログインが必要です。";
     if (profileUid) profileUid.textContent = "id: -";
     if (idReset) idReset.classList.add("hidden");
+    if (profileInviteCode) profileInviteCode.classList.add("hidden");
+    if (profileInviteCopy) profileInviteCopy.classList.add("hidden");
     if (profileAvatar) {
       profileAvatar.removeAttribute("src");
       profileAvatar.classList.add("hidden");
@@ -1077,6 +1126,16 @@ async function loadProfileView() {
     profileUid.textContent = idText;
   }
   if (idReset) idReset.classList.toggle("hidden", !profile?.username);
+  if (profileInviteCode) {
+    if (profile?.inviteIssuedCode) {
+      profileInviteCode.textContent = `招待: ${profile.inviteIssuedCode}`;
+      profileInviteCode.classList.remove("hidden");
+      profileInviteCopy?.classList.remove("hidden");
+    } else {
+      profileInviteCode.classList.add("hidden");
+      profileInviteCopy?.classList.add("hidden");
+    }
+  }
   if (profileAvatar) {
     const url = profile?.avatarData || "";
     setAvatarImage(profileAvatar, url, displayName);
@@ -1124,6 +1183,15 @@ function openIdModal(currentName) {
   idInput.focus();
 }
 
+function openInviteModal(code) {
+  if (!inviteModal || !inviteInput) return;
+  inviteInput.value = code || "";
+  if (inviteStatus) inviteStatus.textContent = "";
+  if (inviteSave) inviteSave.disabled = !authReady;
+  inviteModal.showModal();
+  inviteInput.focus();
+}
+
 function openNicknameModal(currentName) {
   if (!nicknameModal || !nicknameInput) return;
   nicknameInput.value = currentName || "";
@@ -1136,9 +1204,19 @@ function isProfileSetupComplete(profile) {
   return !!(profile?.username && profile?.displayName);
 }
 
+function maybeOpenInviteModal() {
+  if (invitePrompted || !uid || !auth.currentUser) return;
+  if (requireProfileSetup) return;
+  const profile = profileCache.get(uid);
+  if (profile?.inviteCode || profile?.inviteLocked) return;
+  invitePrompted = true;
+  openInviteModal("");
+}
+
 onAuthStateChanged(auth, async (user) => {
   authReady = true;
   uid = user?.uid || "";
+  invitePrompted = false;
   syncAuthUi(user);
   await ensureProfileDoc(user);
   profileCache.clear();
@@ -1161,6 +1239,8 @@ onAuthStateChanged(auth, async (user) => {
     openIdModal("");
   } else if (user && (!profile?.displayName || !profile.displayName.trim())) {
     openNicknameModal("");
+  } else if (user && !profile?.inviteCode) {
+    maybeOpenInviteModal();
   }
 });
 
@@ -1169,6 +1249,29 @@ profileFollowingBtn?.addEventListener("click", async () => {
 });
 profileFollowersBtn?.addEventListener("click", async () => {
   await openFollowList("followers");
+});
+profileInviteCopy?.addEventListener("click", async () => {
+  const currentProfile = profileCache.get(uid) || await fetchProfile(uid);
+  const code = currentProfile?.inviteIssuedCode || "";
+  if (!code) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(code);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = code;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    if (profileStatus) profileStatus.textContent = "招待コードをコピーしました。";
+  } catch (e) {
+    alert("コピーに失敗: " + e.message);
+  }
 });
 btnAvatar?.addEventListener("click", () => {
   if (!uid) {
@@ -1252,6 +1355,8 @@ idSave?.addEventListener("click", async () => {
     requireProfileSetup = !isProfileSetupComplete(current);
     if (!current.displayName) {
       openNicknameModal("");
+    } else {
+      maybeOpenInviteModal();
     }
   } catch (e) {
     if (idStatus) {
@@ -1268,6 +1373,53 @@ idSave?.addEventListener("click", async () => {
 
 
 btnLogin?.addEventListener("click", async () => {
+  const accepted = localStorage.getItem("mobby_terms_accepted") === "1";
+  if (!accepted) {
+    termsAgreeRow?.classList.add("hidden");
+    if (termsAgree) termsAgree.checked = false;
+    if (termsAccept) termsAccept.disabled = true;
+    if (termsContent) termsContent.scrollTop = 0;
+    termsModal?.showModal();
+    return;
+  }
+  try {
+    if (btnLogin) btnLogin.disabled = true;
+    if (userBadge) userBadge.textContent = "ログイン中...";
+    await signInWithPopup(auth, googleProvider);
+  } catch (e) {
+    if (e?.code === "auth/operation-not-allowed") {
+      alert("Googleログインが無効です。Firebaseコンソールで Authentication > ログイン方法 > Google を有効化してください。");
+    } else if (e?.code === "auth/unauthorized-domain") {
+      alert("このドメインは許可されていません。Firebaseコンソールの Authentication > 設定 > 承認済みドメイン に追加してください。");
+    } else if (e?.code === "auth/popup-blocked") {
+      alert("ポップアップがブロックされました。許可して再試行してください。");
+    } else if (e?.code === "auth/popup-closed-by-user") {
+      // no-op
+    } else {
+      alert("ログインに失敗: " + e.message);
+    }
+    syncAuthUi(auth.currentUser);
+  } finally {
+    if (btnLogin) btnLogin.disabled = false;
+  }
+});
+
+termsContent?.addEventListener("scroll", () => {
+  if (!termsContent || !termsAgreeRow) return;
+  const atBottom = termsContent.scrollTop + termsContent.clientHeight >= termsContent.scrollHeight - 2;
+  if (atBottom) {
+    termsAgreeRow.classList.remove("hidden");
+  }
+});
+
+termsAgree?.addEventListener("change", () => {
+  if (termsAccept) termsAccept.disabled = !termsAgree.checked;
+});
+
+termsAccept?.addEventListener("click", async () => {
+  if (!termsAgree?.checked) return;
+  localStorage.setItem("mobby_terms_accepted", "1");
+  termsModal?.close();
   try {
     if (btnLogin) btnLogin.disabled = true;
     if (userBadge) userBadge.textContent = "ログイン中...";
@@ -1339,11 +1491,58 @@ nicknameSave?.addEventListener("click", async () => {
     if (nicknameStatus) nicknameStatus.textContent = "保存しました。";
     nicknameModal?.close();
     requireProfileSetup = !isProfileSetupComplete({ ...(profileCache.get(uid) || {}), displayName: name });
+    maybeOpenInviteModal();
   } catch (e) {
     alert("ニックネーム保存に失敗: " + e.message);
     if (nicknameStatus) nicknameStatus.textContent = "";
   } finally {
     if (nicknameSave) nicknameSave.disabled = false;
+  }
+});
+
+inviteSave?.addEventListener("click", async () => {
+  if (!uid) {
+    alert("ログインが必要");
+    return;
+  }
+  const code = (inviteInput?.value || "").trim();
+  if (!code) {
+    if (inviteStatus) inviteStatus.textContent = "招待コードを入力してください。";
+    return;
+  }
+  try {
+    if (inviteSave) inviteSave.disabled = true;
+    if (inviteStatus) inviteStatus.textContent = "保存中...";
+    const profileRef = doc(db, "profiles", uid);
+    await setDoc(profileRef, { inviteCode: code, inviteLocked: true, updatedAt: serverTimestamp() }, { merge: true });
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), inviteCode: code, inviteLocked: true });
+    if (inviteStatus) inviteStatus.textContent = "保存しました。";
+    inviteModal?.close();
+  } catch (e) {
+    alert("招待コード保存に失敗: " + e.message);
+    if (inviteStatus) inviteStatus.textContent = "";
+  } finally {
+    if (inviteSave) inviteSave.disabled = false;
+  }
+});
+
+inviteSkip?.addEventListener("click", async () => {
+  if (!uid) {
+    inviteModal?.close();
+    return;
+  }
+  try {
+    if (inviteSave) inviteSave.disabled = true;
+    if (inviteStatus) inviteStatus.textContent = "保存中...";
+    const profileRef = doc(db, "profiles", uid);
+    await setDoc(profileRef, { inviteLocked: true, updatedAt: serverTimestamp() }, { merge: true });
+    profileCache.set(uid, { ...(profileCache.get(uid) || {}), inviteLocked: true });
+    inviteModal?.close();
+  } catch (e) {
+    alert("招待コード保存に失敗: " + e.message);
+    if (inviteStatus) inviteStatus.textContent = "";
+  } finally {
+    if (inviteSave) inviteSave.disabled = false;
   }
 });
 

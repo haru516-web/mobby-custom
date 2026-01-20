@@ -253,6 +253,8 @@
               <span id="profileRankBadge" class="rankBadge small hidden" aria-label="ランキング"></span>
               <button id="profileUid" class="countBtn" type="button">id: -</button>
               <button id="idReset" class="btn iconMiniBtn" type="button" title="ID変更">✎</button>
+              <span id="profileInviteCode" class="inviteCodeBadge hidden"></span>
+              <button id="profileInviteCopy" class="btn iconMiniBtn inviteCopyBtn hidden" type="button" title="招待コードをコピー">⧉</button>
             </div>
             <div class="profileCounts">
               <button id="profileFollowingBtn" class="countBtn" type="button"><strong id="profileFollowingCount">0</strong> フォロー中</button>
@@ -348,6 +350,45 @@
       <div class="avatarModalBody">
         <iframe id="avatarFrame" src="avatar/index.html" title="アイコン作成" loading="lazy"></iframe>
       </div>
+    </div>
+  </dialog>
+
+  <dialog id="termsModal" class="modal">
+    <div class="modalInner termsModalInner">
+      <button id="termsModalClose" class="iconBtn" type="button">×</button>
+      <h3 style="margin:0 0 8px;">利用規約</h3>
+      <p class="muted" style="margin:0 0 10px;">内容は一旦後で追加</p>
+      <div id="termsContent" class="termsContent">
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+        <p>内容は一旦後で追加</p>
+      </div>
+      <label id="termsAgreeRow" class="termsAgreeRow hidden">
+        <input id="termsAgree" type="checkbox" />
+        <span>利用規約に同意します</span>
+      </label>
+      <button id="termsAccept" class="btn primary" type="button" disabled>同意して登録</button>
+    </div>
+  </dialog>
+
+  <dialog id="inviteModal" class="modal">
+    <div class="modalInner inviteModalInner">
+      <button id="inviteModalClose" class="iconBtn" type="button">×</button>
+      <h3 style="margin:0 0 8px;">招待コード</h3>
+      <p class="muted" style="margin:0 0 10px;">初回連携時に入力できます。お持ちの方は入力してください。</p>
+      <div class="row" style="margin-top:0;">
+        <input id="inviteInput" class="input" maxlength="32" placeholder="例: MOBBY-2026" style="flex:1" />
+        <button id="inviteSave" class="btn primary" type="button">保存</button>
+        <button id="inviteSkip" class="btn" type="button">後で</button>
+      </div>
+      <div id="inviteStatus" class="muted"></div>
     </div>
   </dialog>
 
