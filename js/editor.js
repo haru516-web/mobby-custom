@@ -835,14 +835,33 @@
     function renderGroup(key) {
       row.innerHTML = "";
       const items = grouped.get(key) || [];
+      const sorted = [...items].sort((a, b) => {
+        const aLocked = !!a.locked;
+        const bLocked = !!b.locked;
+        if (aLocked === bLocked) return 0;
+        return aLocked ? 1 : -1;
+      });
       empty.textContent = "素材がまだありません。";
       empty.classList.toggle("hidden", items.length > 0);
-      for (const a of items) {
+      const lockedLabel = key === "mobby" ? "100pt" : key === "lucky" ? "50pt" : "";
+      for (const a of sorted) {
         const div = document.createElement("button");
         div.className = "asset";
         div.type = "button";
         div.innerHTML = `<img src="${a.url}" alt=""><span>${a.name}</span>`;
-        div.addEventListener("click", () => addAsset(a.url, a.name));
+        if (a.locked) {
+          div.classList.add("locked");
+          div.disabled = true;
+          div.setAttribute("aria-disabled", "true");
+          if (lockedLabel) {
+            const badge = document.createElement("span");
+            badge.className = "assetPrice";
+            badge.textContent = lockedLabel;
+            div.appendChild(badge);
+          }
+        } else {
+          div.addEventListener("click", () => addAsset(a.url, a.name));
+        }
         row.appendChild(div);
       }
     }

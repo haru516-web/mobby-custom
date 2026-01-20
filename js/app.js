@@ -262,6 +262,13 @@ inviteModal?.addEventListener("click", (e) => {
 });
 
 // ---- assets list ----
+const AVAILABLE_STICKERS = new Set([
+  "Logo",
+  "キラキラ1",
+  "ハート1",
+  "屋上ひみつ恋モビー"
+]);
+
 const STICKERS = [
   { name: "Logo", url: "assets/stickers/Logo.png" },
   { name: "キラキラ1", url: "assets/stickers/キラキラ１.PNG" },
@@ -304,7 +311,10 @@ const STICKERS = [
   { name: "理科室研究モビー", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },
   { name: "裏垢拡散モビー", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
   { name: "廊下ランウェイモビー", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },
-];
+].map((item) => ({
+  ...item,
+  locked: !AVAILABLE_STICKERS.has(item.name)
+}));
 const MOBBY_NAME_RE = /モビ[ィー]/;
 
 function showDesign() {
@@ -1196,8 +1206,13 @@ async function renderProfileDesigns() {
       const actions = document.createElement("div");
       actions.className = "profileWorkActions";
 
+      const buyBtn = document.createElement("button");
+      buyBtn.className = "btn smallBtn purchaseBtn";
+      buyBtn.type = "button";
+      buyBtn.textContent = "購入";
+
       const delBtn = document.createElement("button");
-      delBtn.className = "btn smallBtn";
+      delBtn.className = "btn smallBtn deleteBtn";
       delBtn.type = "button";
       delBtn.textContent = "削除";
       delBtn.addEventListener("click", async (e) => {
@@ -1217,6 +1232,7 @@ async function renderProfileDesigns() {
         }
       });
 
+      actions.appendChild(buyBtn);
       actions.appendChild(delBtn);
       body.appendChild(title);
       body.appendChild(meta);
