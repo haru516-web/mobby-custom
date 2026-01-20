@@ -15,6 +15,11 @@
   let erasing = null;
   let drawTool = "pen";
   let pinch = null;
+  let viewScale = 1;
+  let viewOffsetX = 0;
+  let viewOffsetY = 0;
+  const MIN_VIEW_SCALE = 0.8;
+  const MAX_VIEW_SCALE = 2.6;
   const activePointers = new Map();
   const sampleSpacing = 2;
   const MIN_SCALE = 0.05;
@@ -396,18 +401,19 @@
     const h = canvas.height - pad * 2;
 
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad, pad, w, h);
+    ctx.clip();
+    ctx.save();
+    ctx.translate(viewOffsetX, viewOffsetY);
+    ctx.scale(viewScale, viewScale);
     if (templateImg?.width) {
       ctx.drawImage(templateImg, pad, pad, w, h);
     } else {
       ctx.fillStyle = "rgba(255,255,255,.06)";
       ctx.fillRect(pad, pad, w, h);
     }
-    ctx.restore();
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(pad, pad, w, h);
-    ctx.clip();
     for (const o of objects) {
       if (o.type === "path") {
         ctx.save();
@@ -514,18 +520,42 @@
       }
     }
     ctx.restore();
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function toCanvasScreenCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * DPR,
+      y: (e.clientY - rect.top) * DPR
+    };
   }
 
   function toCanvasCoords(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * DPR;
-    const y = (e.clientY - rect.top) * DPR;
-    return { x, y };
+    const screen = toCanvasScreenCoords(e);
+    return {
+      x: (screen.x - viewOffsetX) / viewScale,
+      y: (screen.y - viewOffsetY) / viewScale
+    };
+  }
+
+  function getDesignRect() {
+    const pad = canvas.width * 0.06;
+    const w = canvas.width - pad * 2;
+    const h = canvas.height - pad * 2;
+    return { left: pad, top: pad, right: pad + w, bottom: pad + h };
+  }
+
+  function isInsideDesignArea(x, y) {
+    const rect = getDesignRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
 
   function updatePointer(e) {
+    const screen = toCanvasScreenCoords(e);
     const { x, y } = toCanvasCoords(e);
-    activePointers.set(e.pointerId, { x, y, type: e.pointerType });
+    activePointers.set(e.pointerId, { x, y, sx: screen.x, sy: screen.y, type: e.pointerType });
     return { x, y };
   }
 
@@ -533,17 +563,46 @@
     return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
   }
 
+  function clampViewScale(value) {
+    return Math.min(MAX_VIEW_SCALE, Math.max(MIN_VIEW_SCALE, value));
+  }
+
+  function applyViewScale(nextScale, centerX, centerY) {
+    const clamped = clampViewScale(nextScale);
+    const ratio = clamped / viewScale;
+    viewOffsetX = centerX - (centerX - viewOffsetX) * ratio;
+    viewOffsetY = centerY - (centerY - viewOffsetY) * ratio;
+    viewScale = clamped;
+  }
+
   function maybeStartPinch() {
-    if (drawMode === "draw" || activePointers.size !== 2 || !selectedId) return false;
-    const o = objects.find(v => v.id === selectedId);
-    if (!o || o.type === "path") return false;
+    if (activePointers.size !== 2) return false;
     const points = Array.from(activePointers.values());
-    const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-    pinch = {
-      id: o.id,
-      startDist: dist || 1,
-      startScale: o.s
-    };
+    if (selectedId) {
+      const o = objects.find(v => v.id === selectedId);
+      if (!o || o.type === "path") return false;
+      if (!isInsideDesignArea(points[0].x, points[0].y) || !isInsideDesignArea(points[1].x, points[1].y)) {
+        return false;
+      }
+      const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      pinch = {
+        type: "object",
+        id: o.id,
+        startDist: dist || 1,
+        startScale: o.s
+      };
+    } else {
+      const dist = Math.hypot(points[0].sx - points[1].sx, points[0].sy - points[1].sy);
+      const centerX = (points[0].sx + points[1].sx) / 2;
+      const centerY = (points[0].sy + points[1].sy) / 2;
+      pinch = {
+        type: "view",
+        startDist: dist || 1,
+        startScale: viewScale,
+        centerX,
+        centerY
+      };
+    }
     drag = null;
     rotateDrag = null;
     scaleDrag = null;
@@ -608,6 +667,9 @@
         return;
       }
       if (hitScaleHandle(x, y, current)) {
+        if (!isInsideDesignArea(x, y)) {
+          return;
+        }
         const dist = Math.hypot(x - current.x, y - current.y);
         scaleDrag = {
           id: current.id,
@@ -649,13 +711,24 @@
     updatePointer(e);
     if (pinch && activePointers.size === 2) {
       const points = Array.from(activePointers.values());
-      const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-      const o = objects.find(v => v.id === pinch.id);
-      if (o) {
-        const nextScale = clampScale(pinch.startScale * (dist / pinch.startDist));
-        if (o.s !== nextScale) {
-          o.s = nextScale;
+      if (pinch.type === "view") {
+        const dist = Math.hypot(points[0].sx - points[1].sx, points[0].sy - points[1].sy);
+        const centerX = (points[0].sx + points[1].sx) / 2;
+        const centerY = (points[0].sy + points[1].sy) / 2;
+        const nextScale = clampViewScale(pinch.startScale * (dist / pinch.startDist));
+        if (viewScale !== nextScale) {
+          applyViewScale(nextScale, centerX, centerY);
           draw();
+        }
+      } else {
+        const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+        const o = objects.find(v => v.id === pinch.id);
+        if (o) {
+          const nextScale = clampScale(pinch.startScale * (dist / pinch.startDist));
+          if (o.s !== nextScale) {
+            o.s = nextScale;
+            draw();
+          }
         }
       }
       return;
@@ -723,8 +796,9 @@
   canvas.addEventListener("pointerup", (e) => {
     activePointers.delete(e.pointerId);
     if (pinch && activePointers.size < 2) {
+      const shouldSave = pinch.type === "object";
       pinch = null;
-      pushHistory();
+      if (shouldSave) pushHistory();
       return;
     }
     if (scaleDrag) {
@@ -799,8 +873,14 @@
   async function exportPngBlob(options = {}) {
     const hideUi = !!options.hideUi;
     const prevSelectedId = selectedId;
+    const prevViewScale = viewScale;
+    const prevViewOffsetX = viewOffsetX;
+    const prevViewOffsetY = viewOffsetY;
     if (hideUi) {
       selectedId = null;
+      viewScale = 1;
+      viewOffsetX = 0;
+      viewOffsetY = 0;
       draw();
     }
     let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1.0));
@@ -810,6 +890,9 @@
     }
     if (hideUi) {
       selectedId = prevSelectedId;
+      viewScale = prevViewScale;
+      viewOffsetX = prevViewOffsetX;
+      viewOffsetY = prevViewOffsetY;
       draw();
     }
     return blob;
