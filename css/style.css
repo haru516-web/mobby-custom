@@ -96,6 +96,11 @@ body{
   border-color:rgba(255,140,100,.45);
   color:#3a1f15;
 }
+.btn.liked{
+  background:rgba(255,210,220,.85);
+  border-color:rgba(255,170,190,.7);
+  color:#5a2a2a;
+}
 .btn.primary{border-color:rgba(255,140,100,.45); background:linear-gradient(180deg, var(--primary), var(--primary2)); color:#3a1f15}
 .btn.primary:hover{filter:brightness(1.05)}
 .iconBtn{border:1px solid var(--border);background:rgba(255,255,255,.7);color:var(--text);border-radius:12px;padding:8px 10px;cursor:pointer}

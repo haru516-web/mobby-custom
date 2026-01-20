@@ -815,8 +815,9 @@
     return blob;
   }
 
-  function setAssets(assetList) {
+  function setAssets(assetList, options = {}) {
     assetGrid.innerHTML = "";
+    const onUnlock = typeof options.onUnlock === "function" ? options.onUnlock : null;
     const groups = [
       { key: "mobby", label: "モビー" },
       { key: "lucky", label: "素材" },
@@ -860,7 +861,7 @@
       });
       empty.textContent = "素材がまだありません。";
       empty.classList.toggle("hidden", items.length > 0);
-      const lockedLabel = key === "mobby" ? "100pt" : key === "lucky" ? "50pt" : "";
+      const lockedLabel = "";
       for (const a of sorted) {
         const div = document.createElement("button");
         div.className = "asset";
@@ -868,14 +869,18 @@
         div.innerHTML = `<img src="${a.url}" alt=""><span>${a.name}</span>`;
         if (a.locked) {
           div.classList.add("locked");
-          div.disabled = true;
           div.setAttribute("aria-disabled", "true");
-          if (lockedLabel) {
+          div.dataset.assetName = a.name;
+          const badgeText = a.price ? `${a.price}pt` : lockedLabel;
+          if (badgeText) {
             const badge = document.createElement("span");
             badge.className = "assetPrice";
-            badge.textContent = lockedLabel;
+            badge.textContent = badgeText;
             div.appendChild(badge);
           }
+          div.addEventListener("click", () => {
+            if (onUnlock) onUnlock(a);
+          });
         } else {
           div.addEventListener("click", () => addAsset(a.url, a.name));
         }
@@ -912,12 +917,15 @@
     let dragStartX = 0;
     let dragStartLeft = 0;
     let dragMoved = false;
+    let pendingUnlockAsset = null;
     row.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       isDragScroll = true;
       dragMoved = false;
       dragStartX = e.clientX;
       dragStartLeft = row.scrollLeft;
+      const lockedBtn = e.target.closest(".asset.locked");
+      pendingUnlockAsset = lockedBtn ? lockedBtn.dataset.assetName : null;
       row.setPointerCapture(e.pointerId);
     });
     row.addEventListener("pointermove", (e) => {
@@ -929,9 +937,15 @@
     });
     row.addEventListener("pointerup", () => {
       isDragScroll = false;
+      if (!dragMoved && pendingUnlockAsset && onUnlock) {
+        const asset = assetList.find((item) => item.name === pendingUnlockAsset);
+        if (asset) onUnlock(asset);
+      }
+      pendingUnlockAsset = null;
     });
     row.addEventListener("pointercancel", () => {
       isDragScroll = false;
+      pendingUnlockAsset = null;
     });
     row.addEventListener("wheel", (e) => {
       if (!row.scrollWidth || row.scrollWidth <= row.clientWidth) return;

@@ -83,6 +83,18 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     }
   }
 
+  async function isLiked(designId) {
+    if (!uid || !designId) return false;
+    try {
+      const likeRef = doc(db, "designs", designId, "likesByUser", uid);
+      const snap = await getDoc(likeRef);
+      return snap.exists();
+    } catch (e) {
+      console.warn("like check failed", e);
+      return false;
+    }
+  }
+
   async function toggleFollow(targetUid) {
     if (!uid || !targetUid || uid === targetUid) return { isFollowing: false, followersCount: 0 };
     const followingRef = doc(db, "profiles", uid, "following", targetUid);
@@ -375,13 +387,21 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
       </div>
     `;
 
-    el.querySelector('[data-like="1"]').addEventListener("click", async () => {
+    const likeBtn = el.querySelector('[data-like="1"]');
+    if (likeBtn) {
+      isLiked(id).then((liked) => {
+        likeBtn.classList.toggle("liked", liked);
+      });
+    }
+
+    likeBtn?.addEventListener("click", async () => {
       if (!uid) {
         alert("ログインが必要");
         return;
       }
       try {
-        await toggleLike(id);
+        const liked = await toggleLike(id);
+        likeBtn?.classList.toggle("liked", liked);
         if (typeof options.afterLike === "function") {
           await options.afterLike();
         } else {
@@ -408,6 +428,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
   async function toggleLike(designId) {
     const designRef = doc(db, "designs", designId);
     const likeRef = doc(db, "designs", designId, "likesByUser", uid);
+    let nextLiked = false;
 
     await runTransaction(db, async (tx) => {
       const designSnap = await tx.get(designRef);
@@ -419,11 +440,14 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
       if (likeSnap.exists()) {
         tx.delete(likeRef);
         tx.update(designRef, { likes: Math.max(0, likes - 1) });
+        nextLiked = false;
       } else {
         tx.set(likeRef, { createdAt: serverTimestamp() });
         tx.update(designRef, { likes: likes + 1 });
+        nextLiked = true;
       }
     });
+    return nextLiked;
   }
 
   async function openProfileModal(targetUid) {

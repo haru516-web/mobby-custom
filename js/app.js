@@ -4,7 +4,7 @@ import { createGallery } from "./gallery.js";
 
 import {
   collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
-  serverTimestamp, runTransaction, where, deleteDoc, deleteField, increment
+  serverTimestamp, runTransaction, where, deleteDoc, deleteField, increment, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
@@ -262,7 +262,7 @@ inviteModal?.addEventListener("click", (e) => {
 });
 
 // ---- assets list ----
-const AVAILABLE_STICKERS = new Set([
+const DEFAULT_UNLOCKED_STICKERS = new Set([
   "Logo",
   "キラキラ1",
   "ハート1",
@@ -311,11 +311,31 @@ const STICKERS = [
   { name: "理科室研究モビー", url: "assets/stickers/モビィ透過済男/理科室研究モビィ.png" },
   { name: "裏垢拡散モビー", url: "assets/stickers/モビィ透過済男/裏垢拡散モビィ.png" },
   { name: "廊下ランウェイモビー", url: "assets/stickers/モビィ透過済男/廊下ランウェイモビィ.png" },
-].map((item) => ({
-  ...item,
-  locked: !AVAILABLE_STICKERS.has(item.name)
-}));
+];
 const MOBBY_NAME_RE = /モビ[ィー]/;
+
+function isMobbySticker(name, url) {
+  return /モビ[ィー]/.test(name) || /モビ[ィー]/.test(url) || /モビィ透過済|モビー透過済/.test(url);
+}
+
+function getStickerPrice(name, url) {
+  if (name === "Logo") return 0;
+  return isMobbySticker(name, url) ? 100 : 50;
+}
+
+function buildStickerList(profile) {
+  const unlocked = new Set(DEFAULT_UNLOCKED_STICKERS);
+  const saved = Array.isArray(profile?.unlockedStickers) ? profile.unlockedStickers : [];
+  for (const name of saved) unlocked.add(name);
+  return STICKERS.map((item) => {
+    const price = getStickerPrice(item.name, item.url);
+    return {
+      ...item,
+      price,
+      locked: price > 0 && !unlocked.has(item.name)
+    };
+  });
+}
 
 function showDesign() {
   tabDesign?.classList.add("active");
@@ -379,7 +399,19 @@ function showTimelineSearchMode() {
 
 // ---- main ----
 const editor = createEditor({ canvas, templateSelect, assetGrid });
-editor.setAssets(STICKERS);
+
+function syncInvitePoints(nextPoints) {
+  if (profileInvitePoints) {
+    profileInvitePoints.textContent = `ポイント: ${Number(nextPoints || 0)}`;
+    profileInvitePoints.classList.remove("hidden");
+  }
+}
+
+function refreshStickerAssets(profile) {
+  editor.setAssets(buildStickerList(profile), { onUnlock: unlockStickerAsset });
+}
+
+refreshStickerAssets(null);
 editor.fitCanvas();
 try {
   await editor.loadTemplate(templateSelect.value);
@@ -1076,6 +1108,83 @@ async function toggleFollow(targetUid) {
   return nextFollowing;
 }
 
+async function unlockPurchaseRight(designId, button, labelEl) {
+  if (!uid || !auth.currentUser) {
+    alert("ログインが必要です。");
+    return;
+  }
+  if (!designId) return;
+  const price = 100;
+  const ok = confirm(`この購入権を${price}ptで解放しますか？`);
+  if (!ok) return;
+  const profileRef = doc(db, "profiles", uid);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(profileRef);
+      const current = Number(snap.data()?.invitePoints || 0);
+      const rights = Array.isArray(snap.data()?.purchaseRights) ? snap.data().purchaseRights : [];
+      if (rights.includes(designId)) return;
+      if (current < price) throw new Error("ポイントが足りません。");
+      tx.set(profileRef, {
+        invitePoints: increment(-price),
+        purchaseRights: arrayUnion(designId),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
+    const cached = profileCache.get(uid) || {};
+    const nextPoints = Math.max(0, Number(cached.invitePoints || 0) - price);
+    const nextRights = new Set([...(cached.purchaseRights || []), designId]);
+    profileCache.set(uid, { ...cached, invitePoints: nextPoints, purchaseRights: Array.from(nextRights) });
+    syncInvitePoints(nextPoints);
+    if (button) {
+      button.classList.remove("locked");
+      button.removeAttribute("aria-disabled");
+      button.tabIndex = 0;
+      const badge = button.querySelector(".purchasePrice");
+      if (badge) badge.remove();
+    }
+    if (labelEl) labelEl.textContent = "購入";
+  } catch (e) {
+    alert(e?.message || "購入権の解放に失敗しました。");
+  }
+}
+
+async function unlockStickerAsset(asset) {
+  if (!uid || !auth.currentUser) {
+    alert("ログインが必要です。");
+    return;
+  }
+  if (!asset || !asset.name || !asset.locked) return;
+  const price = Number(asset.price || 0);
+  if (!price) return;
+  const ok = confirm(`「${asset.name}」を${price}ptで解放しますか？`);
+  if (!ok) return;
+
+  const profileRef = doc(db, "profiles", uid);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(profileRef);
+      const current = Number(snap.data()?.invitePoints || 0);
+      const unlocked = Array.isArray(snap.data()?.unlockedStickers) ? snap.data().unlockedStickers : [];
+      if (unlocked.includes(asset.name)) return;
+      if (current < price) throw new Error("ポイントが足りません。");
+      tx.set(profileRef, {
+        invitePoints: increment(-price),
+        unlockedStickers: arrayUnion(asset.name),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
+    const cached = profileCache.get(uid) || {};
+    const nextPoints = Math.max(0, Number(cached.invitePoints || 0) - price);
+    const nextUnlocked = new Set([...(cached.unlockedStickers || []), asset.name]);
+    profileCache.set(uid, { ...cached, invitePoints: nextPoints, unlockedStickers: Array.from(nextUnlocked) });
+    syncInvitePoints(nextPoints);
+    refreshStickerAssets(profileCache.get(uid));
+  } catch (e) {
+    alert(e?.message || "解放に失敗しました。");
+  }
+}
+
 function setProfileUiEnabled(enabled) {
   if (profileName) profileName.disabled = !enabled;
   if (profileBio) profileBio.disabled = !enabled;
@@ -1167,6 +1276,8 @@ async function renderProfileDesigns() {
     profileDesignsStatus.textContent = "ログインが必要です。";
     return;
   }
+  const profile = await fetchProfile(uid);
+  const purchaseRights = new Set(Array.isArray(profile?.purchaseRights) ? profile.purchaseRights : []);
   profileDesignsStatus.textContent = "読み込み中...";
   profileDesigns.innerHTML = "";
   try {
@@ -1207,13 +1318,13 @@ async function renderProfileDesigns() {
       actions.className = "profileWorkActions";
 
       const buyBtn = document.createElement("button");
-      buyBtn.className = "btn smallBtn purchaseBtn locked";
+      buyBtn.className = "btn smallBtn purchaseBtn";
       buyBtn.type = "button";
       buyBtn.setAttribute("aria-disabled", "true");
       buyBtn.tabIndex = -1;
       const buyLabel = document.createElement("span");
       buyLabel.className = "purchaseLabel";
-      buyLabel.textContent = "購入権";
+      buyLabel.textContent = "購入";
 
       const delBtn = document.createElement("button");
       delBtn.className = "btn smallBtn deleteBtn";
@@ -1236,11 +1347,25 @@ async function renderProfileDesigns() {
         }
       });
 
-      const buyBadge = document.createElement("span");
-      buyBadge.className = "purchasePrice";
-      buyBadge.textContent = "100pt";
-      buyBtn.appendChild(buyLabel);
-      buyBtn.appendChild(buyBadge);
+      if (purchaseRights.has(docSnap.id)) {
+        buyBtn.classList.remove("locked");
+        buyBtn.removeAttribute("aria-disabled");
+        buyBtn.tabIndex = 0;
+        buyLabel.textContent = "購入";
+        buyBtn.appendChild(buyLabel);
+      } else {
+        buyBtn.classList.add("locked");
+        buyLabel.textContent = "購入権";
+        const buyBadge = document.createElement("span");
+        buyBadge.className = "purchasePrice";
+        buyBadge.textContent = "100pt";
+        buyBtn.appendChild(buyLabel);
+        buyBtn.appendChild(buyBadge);
+        buyBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await unlockPurchaseRight(docSnap.id, buyBtn, buyLabel);
+        });
+      }
       actions.appendChild(buyBtn);
       actions.appendChild(delBtn);
       body.appendChild(title);
@@ -1306,8 +1431,7 @@ async function loadProfileView() {
     }
   }
   if (profileInvitePoints) {
-    profileInvitePoints.textContent = `ポイント: ${Number(profile?.invitePoints || 0)}`;
-    profileInvitePoints.classList.remove("hidden");
+    syncInvitePoints(Number(profile?.invitePoints || 0));
   }
   if (profileAvatar) {
     const url = profile?.avatarData || "";
@@ -1319,6 +1443,7 @@ async function loadProfileView() {
 
   await refreshFollowingSet();
   await renderProfileDesigns();
+  refreshStickerAssets(profile);
 
   if (profileStatus) profileStatus.textContent = "";
 }
@@ -1409,6 +1534,7 @@ onAuthStateChanged(auth, async (user) => {
   requireProfileSetup = !!user && !isProfileSetupComplete(profile);
   updateUserBadgeFromProfile(profile, user);
   syncAvatarFromProfile(profile, user);
+  refreshStickerAssets(profile);
   ensureGallery(uid);
   if (viewGallery && !viewGallery.classList.contains("hidden")) {
     await gallery?.fetchTop?.();
