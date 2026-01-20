@@ -124,6 +124,7 @@ body{
 
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
 .grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+.grid2.narrow{max-width:25vw;margin:0 auto}
 .hidden{display:none !important}
 .panelTabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
 .panelTab{
@@ -750,6 +751,7 @@ canvas{display:block;width:100%;height:auto;touch-action:pan-y}
   .assetRow .asset{flex-basis:110px}
   .profileLists{grid-template-columns:1fr}
   .profileDesigns{grid-template-columns:repeat(2, minmax(0, 1fr))}
+  .grid2.narrow{max-width:100%;margin:0}
 }
 @media (max-width: 640px){
   .container{padding:18px}
