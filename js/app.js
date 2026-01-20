@@ -44,31 +44,12 @@ const btnClear = document.getElementById("btnClear");
 const btnPublish = document.getElementById("btnPublish");
 const titleInput = document.getElementById("titleInput");
 
-const panelTextBtn = document.getElementById("panelTextBtn");
 const panelDrawBtn = document.getElementById("panelDrawBtn");
 const panelStickerBtn = document.getElementById("panelStickerBtn");
-const panelText = document.getElementById("panelText");
 const panelDraw = document.getElementById("panelDraw");
 const panelSticker = document.getElementById("panelSticker");
 const btnUndo = document.getElementById("btnUndo");
 const btnRedo = document.getElementById("btnRedo");
-
-const textInput = document.getElementById("textInput");
-const textSize = document.getElementById("textSize");
-const textSizeValue = document.getElementById("textSizeValue");
-const textFont = document.getElementById("textFont");
-const btnAddText = document.getElementById("btnAddText");
-const textColor = document.getElementById("textColor");
-const neonPreset = document.getElementById("neonPreset");
-const textAngle = document.getElementById("textAngle");
-const textDirection = document.getElementById("textDirection");
-const btnApplyText = document.getElementById("btnApplyText");
-const textEffect = document.getElementById("textEffect");
-const textEffectColor = document.getElementById("textEffectColor");
-const textEffectBlur = document.getElementById("textEffectBlur");
-const textStrokeColor = document.getElementById("textStrokeColor");
-const textStrokeWidth = document.getElementById("textStrokeWidth");
-const textStrokeWidthValue = document.getElementById("textStrokeWidthValue");
 
 const penColor = document.getElementById("penColor");
 const penSize = document.getElementById("penSize");
@@ -433,24 +414,6 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, n));
 }
 
-function syncTextSizeValue() {
-  if (!textSize || !textSizeValue) return;
-  const size = clampNumber(textSize.value, 12, 120, 36);
-  textSize.value = size;
-  textSizeValue.textContent = String(size);
-}
-
-function getTextEffectOptions() {
-  if (textStrokeWidthValue) textStrokeWidthValue.textContent = String(clampNumber(textStrokeWidth?.value, 0, 12, 0));
-  return {
-    effect: textEffect?.value || "none",
-    effectColor: textEffectColor?.value || "#00f5ff",
-    effectBlur: clampNumber(textEffectBlur?.value, 0, 60, 18),
-    strokeColor: textStrokeColor?.value || "#000000",
-    strokeWidth: clampNumber(textStrokeWidth?.value, 0, 12, 0),
-  };
-}
-
 function getDrawEffectOptions() {
   if (drawStrokeWidthValue) drawStrokeWidthValue.textContent = String(clampNumber(drawStrokeWidth?.value, 0, 12, 0));
   return {
@@ -461,60 +424,6 @@ function getDrawEffectOptions() {
     strokeWidth: clampNumber(drawStrokeWidth?.value, 0, 12, 0),
   };
 }
-
-function getTextStyle() {
-  const angle = clampNumber(textAngle?.value, -180, 180, 0);
-  return {
-    color: textColor?.value || "#ffffff",
-    r: (angle * Math.PI) / 180,
-    ...getTextEffectOptions()
-  };
-}
-
-function applySelectedTextFromControls() {
-  const size = Math.max(12, Math.min(120, parseInt(textSize?.value, 10) || 36));
-  if (textSize) textSize.value = size;
-  syncTextSizeValue();
-  editor.applyTextStyleToSelected({
-    fontFamily: textFont?.value || "Noto Sans JP",
-    size,
-    ...getTextStyle()
-  });
-}
-
-function updateOrCreateTextFromInput() {
-  const value = textInput?.value ?? "";
-  const updated = editor.updateSelectedText?.(value);
-  if (updated || !value.trim()) return;
-  const size = Math.max(12, Math.min(120, parseInt(textSize?.value, 10) || 36));
-  if (textSize) textSize.value = size;
-  syncTextSizeValue();
-  editor.addText(value, textFont?.value || "Noto Sans JP", size, getTextStyle());
-}
-
-btnAddText?.addEventListener("click", () => {
-  updateOrCreateTextFromInput();
-  textInput?.focus();
-});
-
-textInput?.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter") return;
-  e.preventDefault();
-  updateOrCreateTextFromInput();
-});
-textInput?.addEventListener("input", updateOrCreateTextFromInput);
-textInput?.addEventListener("compositionupdate", updateOrCreateTextFromInput);
-
-btnApplyText?.addEventListener("click", () => {
-  applySelectedTextFromControls();
-});
-
-neonPreset?.addEventListener("change", () => {
-  if (!neonPreset.value) return;
-  if (textColor) textColor.value = neonPreset.value;
-  if (textEffectColor) textEffectColor.value = neonPreset.value;
-  applySelectedTextFromControls();
-});
 
 function updatePenOptions() {
   if (penSizeValue) penSizeValue.textContent = String(clampNumber(penSize?.value, 1, 40, 6));
@@ -549,30 +458,14 @@ toolEraser?.addEventListener("click", () => setDrawTool("eraser"));
 editor.setDrawMode("select");
 updatePenOptions();
 if (penSizeValue) penSizeValue.textContent = String(clampNumber(penSize?.value, 1, 40, 6));
-if (textStrokeWidthValue) textStrokeWidthValue.textContent = String(clampNumber(textStrokeWidth?.value, 0, 12, 0));
 if (drawStrokeWidthValue) drawStrokeWidthValue.textContent = String(clampNumber(drawStrokeWidth?.value, 0, 12, 0));
 setDrawTool("pen");
-textSize?.addEventListener("input", syncTextSizeValue);
-syncTextSizeValue();
-
-textSize?.addEventListener("input", applySelectedTextFromControls);
-textFont?.addEventListener("change", applySelectedTextFromControls);
-textColor?.addEventListener("input", applySelectedTextFromControls);
-textAngle?.addEventListener("input", applySelectedTextFromControls);
-textEffect?.addEventListener("change", applySelectedTextFromControls);
-textEffectColor?.addEventListener("input", applySelectedTextFromControls);
-textEffectBlur?.addEventListener("input", applySelectedTextFromControls);
-textStrokeColor?.addEventListener("input", applySelectedTextFromControls);
-textStrokeWidth?.addEventListener("input", applySelectedTextFromControls);
 
 function setAdjustPanel(panel) {
-  const isText = panel === "text";
   const isDraw = panel === "draw";
   const isSticker = panel === "sticker";
-  panelTextBtn?.classList.toggle("active", isText);
   panelDrawBtn?.classList.toggle("active", isDraw);
   panelStickerBtn?.classList.toggle("active", isSticker);
-  panelText?.classList.toggle("hidden", !isText);
   panelDraw?.classList.toggle("hidden", !isDraw);
   panelSticker?.classList.toggle("hidden", !isSticker);
   if (isDraw) {
@@ -582,10 +475,9 @@ function setAdjustPanel(panel) {
   }
 }
 
-panelTextBtn?.addEventListener("click", () => setAdjustPanel("text"));
 panelDrawBtn?.addEventListener("click", () => setAdjustPanel("draw"));
 panelStickerBtn?.addEventListener("click", () => setAdjustPanel("sticker"));
-setAdjustPanel("text");
+setAdjustPanel("sticker");
 
 let gallery = null;
 let uid = "";
