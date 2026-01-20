@@ -173,6 +173,9 @@ const termsContent = document.getElementById("termsContent");
 const termsAgreeRow = document.getElementById("termsAgreeRow");
 const termsAgree = document.getElementById("termsAgree");
 const termsAccept = document.getElementById("termsAccept");
+const draftModal = document.getElementById("draftModal");
+const draftResume = document.getElementById("draftResume");
+const draftDiscard = document.getElementById("draftDiscard");
 const inviteModal = document.getElementById("inviteModal");
 const inviteModalClose = document.getElementById("inviteModalClose");
 const inviteInput = document.getElementById("inviteInput");
@@ -380,6 +383,8 @@ function showTimelineSearchMode() {
 
 // ---- main ----
 const editor = createEditor({ canvas, templateSelect, assetGrid });
+const DRAFT_KEY = "mobby_design_draft_v1";
+let isRestoringDraft = false;
 
 function syncInvitePoints(nextPoints) {
   if (profileInvitePoints) {
@@ -400,13 +405,72 @@ try {
   console.warn("template load failed", e);
 }
 
+function getDraftState() {
+  const raw = localStorage.getItem(DRAFT_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const state = parsed?.state || parsed;
+    if (!state || !Array.isArray(state.objects)) return null;
+    if (!state.objects.length) return null;
+    return state;
+  } catch (e) {
+    console.warn("draft parse failed", e);
+    return null;
+  }
+}
+
+async function restoreDraft(state) {
+  if (!state) return false;
+  try {
+    isRestoringDraft = true;
+    if (state.template && templateSelect) {
+      templateSelect.value = state.template;
+    }
+    await editor.setState?.(state);
+    return true;
+  } catch (e) {
+    console.warn("draft restore failed", e);
+    return false;
+  } finally {
+    isRestoringDraft = false;
+  }
+}
+
+function saveDraft() {
+  if (isRestoringDraft) return;
+  const state = editor.getState?.();
+  if (!state) return;
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ state, savedAt: Date.now() }));
+}
+
+const draftState = getDraftState();
+if (draftState && draftModal) {
+  draftModal.showModal();
+  draftResume?.addEventListener("click", async () => {
+    await restoreDraft(draftState);
+    draftModal.close();
+  });
+  draftDiscard?.addEventListener("click", async () => {
+    localStorage.removeItem(DRAFT_KEY);
+    if (templateSelect) {
+      await editor.setState?.({ template: templateSelect.value, objects: [] });
+    } else {
+      editor.clearAll?.();
+    }
+    draftModal.close();
+  });
+}
+
 btnClear?.addEventListener("click", () => editor.clearAll());
 btnUndo?.addEventListener("click", () => editor.undo?.());
 btnRedo?.addEventListener("click", () => editor.redo?.());
 editor.setHistoryListener?.(({ canUndo, canRedo }) => {
   if (btnUndo) btnUndo.disabled = !canUndo;
   if (btnRedo) btnRedo.disabled = !canRedo;
+  saveDraft();
 });
+window.addEventListener("beforeunload", saveDraft);
 
 function clampNumber(value, min, max, fallback) {
   const n = Number(value);

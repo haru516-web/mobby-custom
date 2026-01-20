@@ -128,6 +128,95 @@
     });
   }
 
+  async function setState(state) {
+    const next = state || {};
+    const items = Array.isArray(next.objects) ? next.objects : [];
+    viewScale = 1;
+    viewOffsetX = 0;
+    viewOffsetY = 0;
+    selectedId = null;
+    objects = [];
+
+    if (next.template && next.template !== templateUrl) {
+      try {
+        await loadTemplate(next.template);
+      } catch (_) {
+        // ignore: keep current template if load fails
+      }
+    }
+
+    const imageLoads = items
+      .filter((o) => o.type === "img" && (o.src || o.url))
+      .map((o) => new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          objects.push({
+            type: "img",
+            id: o.id || crypto.randomUUID(),
+            img,
+            name: o.name || "",
+            src: o.src || o.url,
+            x: Number.isFinite(o.x) ? o.x : canvas.width / 2,
+            y: Number.isFinite(o.y) ? o.y : canvas.height / 2,
+            s: Number.isFinite(o.s) ? o.s : 0.35,
+            r: Number.isFinite(o.r) ? o.r : 0,
+            opacity: Number.isFinite(o.opacity) ? o.opacity : 1,
+            w: img.width,
+            h: img.height
+          });
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = encodeURI(o.src || o.url);
+      }));
+
+    for (const o of items) {
+      if (o.type === "path") {
+        objects.push({
+          type: "path",
+          id: o.id || crypto.randomUUID(),
+          points: Array.isArray(o.points) ? o.points.map((p) => ({ x: p.x, y: p.y })) : [],
+          color: o.color || "#000000",
+          size: Number(o.size || 1),
+          opacity: Number.isFinite(o.opacity) ? o.opacity : 1,
+          effect: o.effect || "none",
+          effectColor: o.effectColor || "#00f5ff",
+          effectBlur: Number(o.effectBlur || 0),
+          strokeColor: o.strokeColor || "#000000",
+          strokeWidth: Number(o.strokeWidth || 0)
+        });
+      } else if (o.type === "text") {
+        objects.push({
+          type: "text",
+          id: o.id || crypto.randomUUID(),
+          text: o.text || "",
+          fontFamily: o.fontFamily || "Noto Sans JP",
+          size: Number.isFinite(o.size) ? o.size : 36,
+          color: o.color || "#ffffff",
+          x: Number.isFinite(o.x) ? o.x : canvas.width / 2,
+          y: Number.isFinite(o.y) ? o.y : canvas.height / 2,
+          s: Number.isFinite(o.s) ? o.s : 1,
+          r: Number.isFinite(o.r) ? o.r : 0,
+          opacity: Number.isFinite(o.opacity) ? o.opacity : 1,
+          effect: o.effect || "none",
+          effectColor: o.effectColor || "#00f5ff",
+          effectBlur: Number(o.effectBlur || 0),
+          strokeColor: o.strokeColor || "#000000",
+          strokeWidth: Number(o.strokeWidth || 0)
+        });
+      }
+    }
+
+    if (imageLoads.length) {
+      await Promise.all(imageLoads);
+    }
+    draw();
+    history = [snapshot()];
+    redoStack = [];
+    notifyHistory();
+  }
+
   function addAsset(assetUrl, name) {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -1383,6 +1472,7 @@
   return {
     fitCanvas,
     loadTemplate,
+    setState,
     setAssets,
     addText,
     clearAll,
@@ -1422,10 +1512,3 @@
     },
   };
 }
-  function toCanvasCoordsFromPoint(clientX, clientY) {
-    const screen = toCanvasScreenCoordsFromPoint(clientX, clientY);
-    return {
-      x: (screen.x - viewOffsetX) / viewScale,
-      y: (screen.y - viewOffsetY) / viewScale
-    };
-  }
