@@ -580,12 +580,29 @@ function setAvatarImage(el, url, title) {
   el.classList.remove("hidden");
 }
 
+function setDesignUiEnabled(enabled) {
+  if (!viewDesign) return;
+  const inputs = viewDesign.querySelectorAll("input, select, button, textarea");
+  inputs.forEach((el) => {
+    el.disabled = !enabled;
+  });
+  if (canvas) {
+    canvas.style.pointerEvents = enabled ? "" : "none";
+  }
+  if (publishStatus && !enabled) {
+    publishStatus.textContent = "ログインすると編集できます。";
+  } else if (publishStatus && enabled && publishStatus.textContent === "ログインすると編集できます。") {
+    publishStatus.textContent = "";
+  }
+}
+
 function syncAuthUi(user) {
   if (userBadge) {
     userBadge.textContent = user ? "ログイン中" : "未ログイン";
   }
   btnLogin?.classList.toggle("hidden", !!user);
   btnLogout?.classList.toggle("hidden", !user);
+  setDesignUiEnabled(!!user);
   if (!user && userAvatar) {
     userAvatar.removeAttribute("src");
     userAvatar.removeAttribute("title");
