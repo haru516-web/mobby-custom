@@ -8,6 +8,24 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
+function patchDialog(el) {
+  if (!el) return;
+  if (typeof el.showModal !== "function") {
+    el.showModal = () => {
+      el.setAttribute("open", "");
+      el.classList.add("isOpen");
+    };
+  }
+  if (typeof el.close !== "function") {
+    el.close = () => {
+      el.removeAttribute("open");
+      el.classList.remove("isOpen");
+    };
+  }
+}
+
+document.querySelectorAll("dialog").forEach(patchDialog);
+
 const tabDesign = document.getElementById("tabDesign");
 const tabGallery = document.getElementById("tabGallery");
 const tabProfile = document.getElementById("tabProfile");

@@ -305,6 +305,19 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 
 .modal{border:none;background:transparent}
 .modal::backdrop{background:rgba(85,60,45,.30)}
+.modal.isOpen{
+  position:fixed;
+  inset:0;
+  display:block;
+  padding:0;
+  z-index:100;
+}
+.modal.isOpen::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background:rgba(85,60,45,.30);
+}
 .modalInner{
   width:min(900px, 92vw);
   margin:7vh auto;
@@ -313,6 +326,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   border-radius:22px;
   padding:14px;
   position:relative;
+  z-index:1;
 }
 .avatarModalInner{width:min(980px, 94vw)}
 .avatarModalBody{height:min(78vh, 760px)}
