@@ -1213,7 +1213,7 @@ async function renderProfileDesigns() {
       buyBtn.tabIndex = -1;
       const buyLabel = document.createElement("span");
       buyLabel.className = "purchaseLabel";
-      buyLabel.textContent = "購入";
+      buyLabel.textContent = "購入権";
 
       const delBtn = document.createElement("button");
       delBtn.className = "btn smallBtn deleteBtn";

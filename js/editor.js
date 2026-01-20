@@ -404,6 +404,10 @@
     }
     ctx.restore();
 
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad, pad, w, h);
+    ctx.clip();
     for (const o of objects) {
       if (o.type === "path") {
         ctx.save();
@@ -509,6 +513,7 @@
         ctx.restore();
       }
     }
+    ctx.restore();
   }
 
   function toCanvasCoords(e) {
@@ -546,6 +551,18 @@
     erasing = null;
     return true;
   }
+
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches && e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (e) => {
+    if (e.touches && e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
 
   canvas.addEventListener("pointerdown", (e) => {
     canvas.setPointerCapture(e.pointerId);
@@ -890,6 +907,37 @@
     assetGrid.appendChild(tabs);
     assetGrid.appendChild(row);
     assetGrid.appendChild(empty);
+
+    let isDragScroll = false;
+    let dragStartX = 0;
+    let dragStartLeft = 0;
+    let dragMoved = false;
+    row.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      isDragScroll = true;
+      dragMoved = false;
+      dragStartX = e.clientX;
+      dragStartLeft = row.scrollLeft;
+      row.setPointerCapture(e.pointerId);
+    });
+    row.addEventListener("pointermove", (e) => {
+      if (!isDragScroll) return;
+      const delta = e.clientX - dragStartX;
+      if (Math.abs(delta) > 2) dragMoved = true;
+      row.scrollLeft = dragStartLeft - delta;
+      if (dragMoved) e.preventDefault();
+    });
+    row.addEventListener("pointerup", () => {
+      isDragScroll = false;
+    });
+    row.addEventListener("pointercancel", () => {
+      isDragScroll = false;
+    });
+    row.addEventListener("wheel", (e) => {
+      if (!row.scrollWidth || row.scrollWidth <= row.clientWidth) return;
+      row.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
 
     renderGroup(activeKey);
     updateTabs();

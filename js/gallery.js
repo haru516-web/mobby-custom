@@ -258,6 +258,10 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     const loadedImages = (await Promise.all(imageLoads)).filter(Boolean);
     const imageMap = new Map(loadedImages.map((entry) => [entry.id, entry.img]));
 
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad, pad, w, h);
+    ctx.clip();
     for (const o of objects) {
       if (o.type === "path") {
         if (o.strokeWidth > 0) {
@@ -294,6 +298,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
       }
       ctx.restore();
     }
+    ctx.restore();
   }
 
   function renderCurrent() {
