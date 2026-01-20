@@ -672,7 +672,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 @media (max-width: 420px){
   .assetRow .asset{flex-basis:96px}
   .galleryGrid{grid-template-columns:1fr}
-  .profileDesigns{grid-template-columns:1fr}
+  .profileDesigns{grid-template-columns:repeat(2, minmax(0, 1fr))}
 }
 .profileAvatarStage .avatarBtn{
   width:20px;
