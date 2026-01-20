@@ -938,6 +938,12 @@ async function renderUserList(type, container) {
       });
     }
 
+    card.addEventListener("click", async () => {
+      if (!gallery?.openProfileModal) return;
+      await gallery.openProfileModal(targetUid);
+    });
+    btn.addEventListener("click", (e) => e.stopPropagation());
+
     card.appendChild(avatar);
     card.appendChild(meta);
     card.appendChild(btn);

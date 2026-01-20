@@ -557,5 +557,13 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     return d.toLocaleString("ja-JP");
   }
 
-  return { fetchTop, setFilter, getFilterOptions, renderCard, warmProfileCache, extractMobbyNames };
+  return {
+    fetchTop,
+    setFilter,
+    getFilterOptions,
+    renderCard,
+    warmProfileCache,
+    extractMobbyNames,
+    openProfileModal
+  };
 }
