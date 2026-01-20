@@ -1338,7 +1338,12 @@ function openInviteModal(code) {
   inviteInput.value = code || "";
   if (inviteStatus) inviteStatus.textContent = "";
   if (inviteSave) inviteSave.disabled = !authReady;
-  inviteModal.showModal();
+  try {
+    inviteModal.showModal();
+  } catch (e) {
+    inviteModal.setAttribute("open", "");
+    inviteModal.classList.add("isOpen");
+  }
   inviteInput.focus();
 }
 

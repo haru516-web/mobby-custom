@@ -307,14 +307,16 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
 
 .modal{border:none;background:transparent}
 .modal::backdrop{background:rgba(85,60,45,.30)}
-.modal.isOpen{
+.modal.isOpen,
+.modal[open]{
   position:fixed;
   inset:0;
   display:block;
   padding:0;
   z-index:100;
 }
-.modal.isOpen::before{
+.modal.isOpen::before,
+.modal[open]::before{
   content:"";
   position:fixed;
   inset:0;
