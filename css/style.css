@@ -752,7 +752,7 @@ canvas{display:block;width:100%;height:auto;touch-action:pan-y}
   .profileDesigns{grid-template-columns:repeat(2, minmax(0, 1fr))}
 }
 @media (max-width: 640px){
-  .container{padding:12px}
+  .container{padding:18px}
   .grid2{grid-template-columns:1fr;width:100%}
   .card{width:100%}
   .row{flex-direction:column;align-items:stretch}
