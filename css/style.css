@@ -522,6 +522,35 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   flex-wrap:wrap;
   margin:8px 0 12px;
 }
+.timelineSearchWrap{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.timelineSearchInline{
+  margin-left:auto;
+}
+.timelineSearchInline .input{
+  height:36px;
+}
+.timelineSearchResults{
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:12px;
+  background:rgba(255,255,255,.65);
+  margin-bottom:12px;
+}
+@media (max-width: 640px){
+  .timelineSearchInline{
+    margin-left:0;
+    width:100%;
+  }
+  .timelineSearchInline .input{
+    flex:1;
+    height:40px;
+  }
+}
 .timelinePanels{
   display:flex;
   flex-direction:column;

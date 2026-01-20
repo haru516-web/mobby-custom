@@ -224,8 +224,16 @@
         <div class="timelineTabs">
           <button id="timelineTabRecommend" class="tab active" type="button">おすすめ</button>
           <button id="timelineTabFollowing" class="tab" type="button">フォロー中</button>
+          <div id="timelineSearchWrap" class="timelineSearchWrap timelineSearchInline">
+            <input id="timelineSearchInput" class="input" placeholder="ID検索" />
+            <button id="timelineSearchBtn" class="tab" type="button">ID検索</button>
+          </div>
         </div>
-        <div class="timelinePanels">
+        <div id="timelineSearchResults" class="timelineSearchResults hidden">
+          <div id="timelineSearchStatus" class="muted"></div>
+          <div id="timelineSearchList" class="userList"></div>
+        </div>
+        <div id="timelinePanels" class="timelinePanels">
           <div id="timelinePanelRecommend" class="timelineBox">
             <div id="timelineRecommend" class="galleryGrid"></div>
             <div id="timelineRecommendStatus" class="muted"></div>

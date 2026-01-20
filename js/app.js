@@ -131,6 +131,13 @@ const timelineRecommend = document.getElementById("timelineRecommend");
 const timelineFollowing = document.getElementById("timelineFollowing");
 const timelineRecommendStatus = document.getElementById("timelineRecommendStatus");
 const timelineFollowingStatus = document.getElementById("timelineFollowingStatus");
+const timelineSearchWrap = document.getElementById("timelineSearchWrap");
+const timelineSearchInput = document.getElementById("timelineSearchInput");
+const timelineSearchBtn = document.getElementById("timelineSearchBtn");
+const timelineSearchResults = document.getElementById("timelineSearchResults");
+const timelineSearchStatus = document.getElementById("timelineSearchStatus");
+const timelineSearchList = document.getElementById("timelineSearchList");
+const timelinePanels = document.getElementById("timelinePanels");
 
 const profileAvatar = document.getElementById("profileAvatar");
 const profileUid = document.getElementById("profileUid");
@@ -347,6 +354,17 @@ function showTimelinePanel(panel) {
   timelineTabFollowing?.classList.toggle("active", !isRecommend);
   timelinePanelRecommend?.classList.toggle("hidden", !isRecommend);
   timelinePanelFollowing?.classList.toggle("hidden", isRecommend);
+  timelineSearchBtn?.classList.remove("active");
+  timelineSearchResults?.classList.add("hidden");
+  timelinePanels?.classList.remove("hidden");
+}
+
+function showTimelineSearchMode() {
+  timelineTabRecommend?.classList.remove("active");
+  timelineTabFollowing?.classList.remove("active");
+  timelineSearchBtn?.classList.add("active");
+  timelinePanels?.classList.add("hidden");
+  timelineSearchResults?.classList.remove("hidden");
 }
 
 // ---- main ----
@@ -570,6 +588,102 @@ timelineFilter?.addEventListener("change", () => {
   renderTimelineList(timelineRecommendDocs, timelineRecommend, timelineRecommendStatus);
   renderTimelineList(timelineFollowingDocs, timelineFollowing, timelineFollowingStatus);
 });
+function normalizeTimelineSearch(raw) {
+  return String(raw || "")
+    .replace(/[\\s\\u3000]/g, "")
+    .replace(/^id[:：]/i, "")
+    .toLowerCase();
+}
+
+async function applyTimelineSearch() {
+  const rawText = String(timelineSearchInput?.value || "").trim();
+  const queryText = normalizeTimelineSearch(rawText);
+  if (!timelineSearchResults || !timelineSearchStatus || !timelineSearchList) return;
+  showTimelineSearchMode();
+  timelineSearchList.innerHTML = "";
+  if (!queryText) {
+    timelineSearchStatus.textContent = "IDを入力してください。";
+    return;
+  }
+  timelineSearchStatus.textContent = "検索中...";
+  try {
+    const profilesCol = collection(db, "profiles");
+    let snap = await getDocs(query(
+      profilesCol,
+      where("usernameLower", "==", queryText),
+      limit(20)
+    ));
+    if (snap.empty && rawText) {
+      const rawCode = rawText.replace(/^id[:：]/i, "").trim();
+      snap = await getDocs(query(
+        profilesCol,
+        where("username", "==", rawCode),
+        limit(20)
+      ));
+    }
+    if (snap.empty) {
+      timelineSearchStatus.textContent = "該当するユーザーが見つかりません。";
+      return;
+    }
+    timelineSearchStatus.textContent = "";
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data() || {};
+      const targetUid = docSnap.id;
+      const displayName = data.displayName || data.username || getFallbackName(targetUid);
+      const idText = data.username ? `id: ${data.username}` : `uid: ${getFallbackName(targetUid)}`;
+      const photoUrl = data.avatarData || DEFAULT_AVATAR_URL;
+
+      const card = document.createElement("div");
+      card.className = "userCard";
+
+      const avatar = document.createElement("img");
+      avatar.className = "userAvatar";
+      avatar.alt = `${displayName}のアイコン`;
+      avatar.src = photoUrl;
+
+      const meta = document.createElement("div");
+      meta.className = "userMeta";
+      const nameEl = document.createElement("div");
+      nameEl.className = "userName";
+      nameEl.textContent = displayName;
+      const idEl = document.createElement("div");
+      idEl.className = "userId";
+      idEl.textContent = idText;
+      meta.appendChild(nameEl);
+      meta.appendChild(idEl);
+
+      const btn = document.createElement("button");
+      btn.className = "btn smallBtn";
+      btn.type = "button";
+      btn.textContent = "プロフィール";
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!gallery?.openProfileModal) return;
+        await gallery.openProfileModal(targetUid);
+      });
+
+      card.appendChild(avatar);
+      card.appendChild(meta);
+      card.appendChild(btn);
+      card.addEventListener("click", async () => {
+        if (!gallery?.openProfileModal) return;
+        await gallery.openProfileModal(targetUid);
+      });
+      timelineSearchList.appendChild(card);
+    }
+  } catch (e) {
+    console.warn("timeline search failed", e);
+    timelineSearchStatus.textContent = e?.code === "permission-denied"
+      ? "検索権限がありません。"
+      : "検索に失敗しました。";
+  }
+}
+
+timelineSearchBtn?.addEventListener("click", applyTimelineSearch);
+timelineSearchInput?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  applyTimelineSearch();
+});
 
 const DEFAULT_AVATAR_URL = "assets/watermark/mobby.png";
 
@@ -693,11 +807,14 @@ function syncTimelineFilterOptions(items) {
 }
 
 function filterTimelineDocs(items) {
-  if (timelineFilterValue === "all") return items;
-  return items.filter((item) => {
-    const names = extractTimelineMobbyNames(item.data?.state);
-    return names.has(timelineFilterValue);
-  });
+  let filtered = items;
+  if (timelineFilterValue !== "all") {
+    filtered = filtered.filter((item) => {
+      const names = extractTimelineMobbyNames(item.data?.state);
+      return names.has(timelineFilterValue);
+    });
+  }
+  return filtered;
 }
 
 function renderTimelineList(items, container, statusEl) {
@@ -776,6 +893,8 @@ async function fetchTimelineFollowing() {
 
 async function refreshTimeline() {
   await Promise.all([fetchTimelineRecommend(), fetchTimelineFollowing()]);
+  const allTimelineDocs = [...timelineRecommendDocs, ...timelineFollowingDocs];
+  await Promise.all(allTimelineDocs.map((item) => fetchProfile(item.data?.uid)));
   if (gallery?.warmProfileCache) {
     await gallery.warmProfileCache([...timelineRecommendDocs, ...timelineFollowingDocs]);
   }
