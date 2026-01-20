@@ -4,7 +4,7 @@ import { createGallery } from "./gallery.js";
 
 import {
   collection, doc, addDoc, getDoc, getDocs, query, orderBy, limit, setDoc,
-  serverTimestamp, runTransaction, where, deleteDoc, deleteField
+  serverTimestamp, runTransaction, where, deleteDoc, deleteField, increment
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
@@ -146,6 +146,7 @@ const profileFollowersBtn = document.getElementById("profileFollowersBtn");
 const profileRankBadge = document.getElementById("profileRankBadge");
 const profileInviteCode = document.getElementById("profileInviteCode");
 const profileInviteCopy = document.getElementById("profileInviteCopy");
+const profileInvitePoints = document.getElementById("profileInvitePoints");
 const followingList = document.getElementById("followingList");
 const followersList = document.getElementById("followersList");
 const profileDesigns = document.getElementById("profileDesigns");
@@ -865,6 +866,7 @@ async function ensureProfileDoc(user) {
       next.createdAt = serverTimestamp();
       next.followersCount = 0;
       next.followingCount = 0;
+      next.invitePoints = 0;
     }
     await setDoc(profileRef, next, { merge: true });
   } catch (e) {
@@ -1117,6 +1119,7 @@ async function loadProfileView() {
     if (idReset) idReset.classList.add("hidden");
     if (profileInviteCode) profileInviteCode.classList.add("hidden");
     if (profileInviteCopy) profileInviteCopy.classList.add("hidden");
+    if (profileInvitePoints) profileInvitePoints.classList.add("hidden");
     if (profileAvatar) {
       profileAvatar.removeAttribute("src");
       profileAvatar.classList.add("hidden");
@@ -1152,6 +1155,10 @@ async function loadProfileView() {
       profileInviteCode.classList.add("hidden");
       profileInviteCopy?.classList.add("hidden");
     }
+  }
+  if (profileInvitePoints) {
+    profileInvitePoints.textContent = `ポイント: ${Number(profile?.invitePoints || 0)}`;
+    profileInvitePoints.classList.remove("hidden");
   }
   if (profileAvatar) {
     const url = profile?.avatarData || "";
@@ -1530,9 +1537,56 @@ inviteSave?.addEventListener("click", async () => {
   try {
     if (inviteSave) inviteSave.disabled = true;
     if (inviteStatus) inviteStatus.textContent = "保存中...";
+    const profilesCol = collection(db, "profiles");
+    const q = query(profilesCol, where("inviteIssuedCode", "==", code), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      if (inviteStatus) inviteStatus.textContent = "無効な招待コードです。";
+      return;
+    }
+    const inviterDoc = snap.docs[0];
+    if (inviterDoc.id === uid) {
+      if (inviteStatus) inviteStatus.textContent = "自分の招待コードは使えません。";
+      return;
+    }
     const profileRef = doc(db, "profiles", uid);
-    await setDoc(profileRef, { inviteCode: code, inviteLocked: true, updatedAt: serverTimestamp() }, { merge: true });
-    profileCache.set(uid, { ...(profileCache.get(uid) || {}), inviteCode: code, inviteLocked: true });
+    const inviterRef = doc(db, "profiles", inviterDoc.id);
+    await runTransaction(db, async (tx) => {
+      const [inviteeSnap, inviterSnap] = await Promise.all([
+        tx.get(profileRef),
+        tx.get(inviterRef)
+      ]);
+      const invitee = inviteeSnap.data() || {};
+      if (invitee.inviteLocked || invitee.inviteCode) {
+        throw new Error("招待コードは既に登録済みです。");
+      }
+      if (!inviterSnap.exists()) {
+        throw new Error("招待コードが無効です。");
+      }
+      tx.set(profileRef, {
+        inviteCode: code,
+        inviteInviterUid: inviterDoc.id,
+        inviteLocked: true,
+        invitePoints: increment(10),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      tx.set(inviterRef, {
+        invitePoints: increment(50),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
+    profileCache.set(uid, {
+      ...(profileCache.get(uid) || {}),
+      inviteCode: code,
+      inviteInviterUid: inviterDoc.id,
+      inviteLocked: true,
+      invitePoints: Number(profileCache.get(uid)?.invitePoints || 0) + 10
+    });
+    if (profileInvitePoints) {
+      const nextPoints = Number(profileCache.get(uid)?.invitePoints || 0);
+      profileInvitePoints.textContent = `ポイント: ${nextPoints}`;
+      profileInvitePoints.classList.remove("hidden");
+    }
     if (inviteStatus) inviteStatus.textContent = "保存しました。";
     inviteModal?.close();
   } catch (e) {

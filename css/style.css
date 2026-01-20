@@ -491,6 +491,19 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   padding:0;
   font-size:12px;
 }
+.invitePointsBadge{
+  display:inline-flex;
+  align-items:center;
+  height:24px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,177,122,.5);
+  background:rgba(255,235,220,.9);
+  color:#7a3b1c;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
 .profileLists{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:14px}
 .profileListTitle{margin:0 0 6px;font-size:16px}
 .userList{display:grid;gap:10px}
