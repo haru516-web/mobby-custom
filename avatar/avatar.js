@@ -232,11 +232,33 @@ function blobToDataUrl(blob) {
   });
 }
 
+async function createAvatarDataUrlFromBlob(blob, size = 320) {
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+    ctx.drawImage(img, 0, 0, size, size);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
 useBtn?.addEventListener("click", async () => {
   try {
     await applySelections(false);
     const blob = await editor.exportPngBlob({ hideUi: true });
-    const dataUrl = await blobToDataUrl(blob);
+    const dataUrl = await createAvatarDataUrlFromBlob(blob, 320);
     const origin = window.location.origin;
     const target = origin === "null" ? "*" : origin;
     if (window.parent && window.parent !== window) {
