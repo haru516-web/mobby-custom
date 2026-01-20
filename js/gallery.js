@@ -181,20 +181,55 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
   async function renderStateToCanvas(state, canvas) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const cssSize = canvas.width || 900;
-    let size = Number(state?.canvasW || state?.canvasH || 0);
-    if (!size) {
-      const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-      size = cssSize * dpr;
+    const fallbackSize = canvas.width || 900;
+    let baseSize = Number(state?.canvasW || state?.canvasH || 0);
+    let renderScale = 1;
+    if (!baseSize) {
+      const objects = Array.isArray(state?.objects) ? state.objects : [];
+      let maxCoord = 0;
+      for (const o of objects) {
+        if (o?.type === "path" && Array.isArray(o.points)) {
+          for (const p of o.points) {
+            maxCoord = Math.max(maxCoord, Number(p.x || 0), Number(p.y || 0));
+          }
+          continue;
+        }
+        if (o?.type === "img") {
+          const w = Number(o.w || 0);
+          const h = Number(o.h || 0);
+          const s = Number(o.s || 1);
+          maxCoord = Math.max(
+            maxCoord,
+            Number(o.x || 0) + (w * s) / 2,
+            Number(o.y || 0) + (h * s) / 2
+          );
+          continue;
+        }
+        if (o?.type === "text") {
+          const size = Number(o.size || 0);
+          const s = Number(o.s || 1);
+          maxCoord = Math.max(
+            maxCoord,
+            Number(o.x || 0) + (size * s) / 2,
+            Number(o.y || 0) + (size * s) / 2
+          );
+        }
+      }
+      baseSize = maxCoord > fallbackSize * 1.1 ? Math.ceil(maxCoord * 1.1) : fallbackSize;
+      if (baseSize <= fallbackSize * 1.1) {
+        renderScale = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+      }
     }
-    canvas.width = size;
-    canvas.height = size;
 
-    const pad = canvas.width * 0.06;
-    const w = canvas.width - pad * 2;
-    const h = canvas.height - pad * 2;
+    canvas.width = Math.round(baseSize * renderScale);
+    canvas.height = Math.round(baseSize * renderScale);
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const pad = baseSize * 0.06;
+    const w = baseSize - pad * 2;
+    const h = baseSize - pad * 2;
+
+    ctx.clearRect(0, 0, baseSize, baseSize);
 
     const templateUrl = state?.template || "";
     if (templateUrl) {
@@ -356,6 +391,10 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     });
     el.querySelector('[data-profile="1"]').addEventListener("click", async () => {
       await openProfileModal(data.uid);
+    });
+    el.addEventListener("click", async (e) => {
+      if (e.target.closest("button")) return;
+      await openModal(id, data);
     });
 
     return el;
@@ -564,6 +603,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     renderCard,
     warmProfileCache,
     extractMobbyNames,
-    openProfileModal
+    openProfileModal,
+    openModal
   };
 }

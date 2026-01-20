@@ -243,6 +243,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   border-radius:20px;
   overflow:hidden;
   background:rgba(255,255,255,.65);
+  cursor:pointer;
 }
 .work img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
 .workBody{padding:10px}
@@ -579,6 +580,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   border-radius:20px;
   overflow:hidden;
   background:rgba(255,255,255,.65);
+  cursor:pointer;
 }
 .profileWork img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
 .profileWorkBody{padding:10px}
@@ -665,6 +667,7 @@ canvas{display:block;width:100%;height:auto;touch-action:none}
   .home .lead{font-size:14px}
   .profileMeta{min-height:auto;padding-top:0}
   .profileIdRow{gap:6px;row-gap:6px}
+  .profileIdRow .btn{width:auto}
   .profileIdRow .countBtn{height:26px}
   .inviteCodeBadge,.invitePointsBadge{height:22px;font-size:10px}
   .inviteCopyBtn{height:22px;width:22px;min-width:22px}

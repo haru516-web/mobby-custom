@@ -1200,7 +1200,8 @@ async function renderProfileDesigns() {
       delBtn.className = "btn smallBtn";
       delBtn.type = "button";
       delBtn.textContent = "削除";
-      delBtn.addEventListener("click", async () => {
+      delBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
         if (!confirm("この投稿を削除しますか？")) return;
         try {
           delBtn.disabled = true;
@@ -1222,6 +1223,10 @@ async function renderProfileDesigns() {
       body.appendChild(actions);
       card.appendChild(img);
       card.appendChild(body);
+      card.addEventListener("click", async () => {
+        if (!gallery?.openModal) return;
+        await gallery.openModal(docSnap.id, data);
+      });
       profileDesigns.appendChild(card);
     }
   } catch (e) {
