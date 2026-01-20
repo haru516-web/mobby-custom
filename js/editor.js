@@ -20,6 +20,7 @@
   let viewOffsetY = 0;
   const MIN_VIEW_SCALE = 0.8;
   const MAX_VIEW_SCALE = 2.6;
+  const DESIGN_INSET_RATIO = 0.08;
   const activePointers = new Map();
   const sampleSpacing = 2;
   const MIN_SCALE = 0.05;
@@ -396,7 +397,7 @@
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const pad = canvas.width * 0.06;
+    const pad = canvas.width * 0.09;
     const w = canvas.width - pad * 2;
     const h = canvas.height - pad * 2;
 
@@ -524,12 +525,16 @@
     ctx.restore();
   }
 
-  function toCanvasScreenCoords(e) {
+  function toCanvasScreenCoordsFromPoint(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: (e.clientX - rect.left) * DPR,
-      y: (e.clientY - rect.top) * DPR
+      x: (clientX - rect.left) * DPR,
+      y: (clientY - rect.top) * DPR
     };
+  }
+
+  function toCanvasScreenCoords(e) {
+    return toCanvasScreenCoordsFromPoint(e.clientX, e.clientY);
   }
 
   function toCanvasCoords(e) {
@@ -541,7 +546,7 @@
   }
 
   function getDesignRect() {
-    const pad = canvas.width * 0.06;
+    const pad = canvas.width * DESIGN_INSET_RATIO;
     const w = canvas.width - pad * 2;
     const h = canvas.height - pad * 2;
     return { left: pad, top: pad, right: pad + w, bottom: pad + h };
@@ -592,6 +597,9 @@
         startScale: o.s
       };
     } else {
+      if (!isInsideDesignArea(points[0].x, points[0].y) || !isInsideDesignArea(points[1].x, points[1].y)) {
+        return false;
+      }
       const dist = Math.hypot(points[0].sx - points[1].sx, points[0].sy - points[1].sy);
       const centerX = (points[0].sx + points[1].sx) / 2;
       const centerY = (points[0].sy + points[1].sy) / 2;
@@ -623,8 +631,74 @@
     }
   }, { passive: false });
 
+  let touchPinch = null;
+  canvas.addEventListener("touchstart", (e) => {
+    if (!e.touches || e.touches.length !== 2) return;
+    const t0 = e.touches[0];
+    const t1 = e.touches[1];
+    if (selectedId) {
+      const p0 = toCanvasCoordsFromPoint(t0.clientX, t0.clientY);
+      const p1 = toCanvasCoordsFromPoint(t1.clientX, t1.clientY);
+      if (!isInsideDesignArea(p0.x, p0.y) || !isInsideDesignArea(p1.x, p1.y)) return;
+      const dist = Math.hypot(p0.x - p1.x, p0.y - p1.y);
+      touchPinch = { type: "object", id: selectedId, startDist: dist || 1, startScale: objects.find(v => v.id === selectedId)?.s || 1 };
+    } else {
+      const p0 = toCanvasCoordsFromPoint(t0.clientX, t0.clientY);
+      const p1 = toCanvasCoordsFromPoint(t1.clientX, t1.clientY);
+      if (!isInsideDesignArea(p0.x, p0.y) || !isInsideDesignArea(p1.x, p1.y)) return;
+      const s0 = toCanvasScreenCoordsFromPoint(t0.clientX, t0.clientY);
+      const s1 = toCanvasScreenCoordsFromPoint(t1.clientX, t1.clientY);
+      const dist = Math.hypot(s0.x - s1.x, s0.y - s1.y);
+      touchPinch = {
+        type: "view",
+        startDist: dist || 1,
+        startScale: viewScale,
+        centerX: (s0.x + s1.x) / 2,
+        centerY: (s0.y + s1.y) / 2
+      };
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (e) => {
+    if (!touchPinch || !e.touches || e.touches.length !== 2) return;
+    const t0 = e.touches[0];
+    const t1 = e.touches[1];
+    if (touchPinch.type === "view") {
+      const s0 = toCanvasScreenCoordsFromPoint(t0.clientX, t0.clientY);
+      const s1 = toCanvasScreenCoordsFromPoint(t1.clientX, t1.clientY);
+      const dist = Math.hypot(s0.x - s1.x, s0.y - s1.y);
+      const nextScale = clampViewScale(touchPinch.startScale * (dist / touchPinch.startDist));
+      if (viewScale !== nextScale) {
+        applyViewScale(nextScale, (s0.x + s1.x) / 2, (s0.y + s1.y) / 2);
+        draw();
+      }
+    } else {
+      const p0 = toCanvasCoordsFromPoint(t0.clientX, t0.clientY);
+      const p1 = toCanvasCoordsFromPoint(t1.clientX, t1.clientY);
+      const dist = Math.hypot(p0.x - p1.x, p0.y - p1.y);
+      const o = objects.find(v => v.id === touchPinch.id);
+      if (o) {
+        const nextScale = clampScale(touchPinch.startScale * (dist / touchPinch.startDist));
+        if (o.s !== nextScale) {
+          o.s = nextScale;
+          draw();
+        }
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener("touchend", () => {
+    if (touchPinch && touchPinch.type === "object") {
+      pushHistory();
+    }
+    touchPinch = null;
+  });
+
   canvas.addEventListener("pointerdown", (e) => {
-    canvas.setPointerCapture(e.pointerId);
+    if (e.pointerType !== "touch") {
+      canvas.setPointerCapture(e.pointerId);
+    }
     const { x, y } = updatePointer(e);
     if (maybeStartPinch()) {
       draw();
@@ -709,6 +783,9 @@
 
   canvas.addEventListener("pointermove", (e) => {
     updatePointer(e);
+    if (e.pointerType === "touch" && (drawing || drag || rotateDrag || scaleDrag || pinch || erasing)) {
+      e.preventDefault();
+    }
     if (pinch && activePointers.size === 2) {
       const points = Array.from(activePointers.values());
       if (pinch.type === "view") {
@@ -1345,3 +1422,10 @@
     },
   };
 }
+  function toCanvasCoordsFromPoint(clientX, clientY) {
+    const screen = toCanvasScreenCoordsFromPoint(clientX, clientY);
+    return {
+      x: (screen.x - viewOffsetX) / viewScale,
+      y: (screen.y - viewOffsetY) / viewScale
+    };
+  }

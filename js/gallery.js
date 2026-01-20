@@ -237,7 +237,7 @@ export function createGallery({ db, uid, gridEl, statusEl, modalEl, modalBodyEl,
     canvas.height = Math.round(baseSize * renderScale);
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
 
-    const pad = baseSize * 0.06;
+    const pad = baseSize * 0.09;
     const w = baseSize - pad * 2;
     const h = baseSize - pad * 2;
 

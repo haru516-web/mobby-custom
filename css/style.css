@@ -145,14 +145,22 @@ body{
 }
 
 .canvasWrap{
-  border:1px dashed rgba(121,93,72,.22);
   border-radius:20px;
   overflow:hidden;
   background:rgba(255,255,255,.55);
   margin:12px 0;
-  touch-action:none;
+  touch-action:pan-y;
+  position:relative;
 }
-canvas{display:block;width:100%;height:auto;touch-action:none}
+.canvasWrap::after{
+  content:"";
+  position:absolute;
+  inset:8%;
+  border:1px dashed rgba(121,93,72,.22);
+  border-radius:18px;
+  pointer-events:none;
+}
+canvas{display:block;width:100%;height:auto;touch-action:pan-y}
 
 .assetPicker{
   display:flex;
