@@ -125,6 +125,42 @@ body{
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
 .grid2{display:flex;flex-direction:column;gap:14px;width:100%;max-width:1100px;}
 .grid2 .card{max-width:none;margin:0;}
+.designHeader{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:24px;
+  flex-wrap:wrap;
+}
+.designToggle{
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:10px 18px;
+  font-size:20px;
+  font-weight:700;
+  background:rgba(255,255,255,.85);
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.designToggle[aria-expanded="true"]{
+  background:linear-gradient(180deg, rgba(255,208,176,.85), rgba(255,184,150,.9));
+}
+.designToggle:focus-visible{
+  outline:2px solid var(--primary2);
+  outline-offset:4px;
+}
+.adjustPanelBody{
+  margin-top:12px;
+}
+.panelContent{
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:12px;
+  background:rgba(255,255,255,.65);
+  margin-bottom:10px;
+}
 .hidden{display:none !important}
 .panelTabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
 .panelTab{
@@ -163,6 +199,19 @@ body{
   border:1px dashed rgba(121,93,72,.22);
   border-radius:18px;
   pointer-events:none;
+}
+.templatePreview{
+  position:absolute;
+  inset:12%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  pointer-events:none;
+}
+.templatePreview img{
+  max-width:100%;
+  max-height:100%;
+  opacity:.35;
 }
 canvas{display:block;width:100%;height:auto;touch-action:pan-y}
 

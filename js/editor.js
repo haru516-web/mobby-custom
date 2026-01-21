@@ -4,6 +4,23 @@
 
   let templateImg = new Image();
   let templateUrl = "";
+  const watermarkImg = new Image();
+  watermarkImg.crossOrigin = "anonymous";
+  try {
+    watermarkImg.src = new URL("../assets/stickers/Logo.png", import.meta.url).href;
+  } catch (e) {
+    watermarkImg.src = "/assets/stickers/Logo.png";
+  }
+
+  function ensureWatermarkLoaded() {
+    if (watermarkImg.complete && watermarkImg.naturalWidth) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      watermarkImg.onload = () => resolve(true);
+      watermarkImg.onerror = () => resolve(false);
+    });
+  }
   let objects = []; // {type:'img'|'text'|'path', ...}
   let selectedId = null;
   let drag = null;
@@ -1049,9 +1066,25 @@
       viewOffsetY = 0;
       draw();
     }
-    let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1.0));
+    const markCanvas = document.createElement("canvas");
+    markCanvas.width = canvas.width;
+    markCanvas.height = canvas.height;
+    const markCtx = markCanvas.getContext("2d");
+    markCtx.drawImage(canvas, 0, 0);
+    const watermarkReady = await ensureWatermarkLoaded();
+    if (watermarkReady && watermarkImg.naturalWidth) {
+      const targetW = Math.max(120, Math.round(markCanvas.width * 0.28));
+      const scale = targetW / watermarkImg.naturalWidth;
+      const targetH = Math.round(watermarkImg.naturalHeight * scale);
+      const x = Math.round((markCanvas.width - targetW) / 2);
+      const y = Math.round((markCanvas.height - targetH) / 2);
+      markCtx.globalAlpha = 0.75;
+      markCtx.drawImage(watermarkImg, x, y, targetW, targetH);
+      markCtx.globalAlpha = 1;
+    }
+    let blob = await new Promise((resolve) => markCanvas.toBlob(resolve, "image/png", 1.0));
     if (!blob) {
-      const dataUrl = canvas.toDataURL("image/png");
+      const dataUrl = markCanvas.toDataURL("image/png");
       blob = dataUrlToBlob(dataUrl);
     }
     if (hideUi) {
@@ -1064,6 +1097,7 @@
     return blob;
   }
 
+  let resetAssetSelectionCallback = null;
   function setAssets(assetList, options = {}) {
     assetGrid.innerHTML = "";
     const onUnlock = typeof options.onUnlock === "function" ? options.onUnlock : null;
@@ -1092,12 +1126,13 @@
     const tabs = document.createElement("div");
     tabs.className = "assetTabs";
     const row = document.createElement("div");
-    row.className = "assetRow";
+    row.className = "assetRow hidden";
     const empty = document.createElement("p");
     empty.className = "muted assetEmpty";
+    empty.textContent = "カテゴリを選択してください。";
 
     const tabButtons = new Map();
-    let activeKey = groups.find((g) => (grouped.get(g.key) || []).length)?.key || groups[0].key;
+    let activeKey = null;
 
     function renderGroup(key) {
       row.innerHTML = "";
@@ -1108,9 +1143,14 @@
         if (aLocked === bLocked) return 0;
         return aLocked ? 1 : -1;
       });
-      empty.textContent = "素材がまだありません。";
-      empty.classList.toggle("hidden", items.length > 0);
+      row.classList.remove("hidden");
+      activeKey = key;
+      empty.classList.add("hidden");
       const lockedLabel = "";
+      if (!sorted.length) {
+        empty.textContent = "素材がまだありません。";
+        empty.classList.remove("hidden");
+      }
       for (const a of sorted) {
         const div = document.createElement("button");
         div.className = "asset";
@@ -1143,15 +1183,21 @@
       }
     }
 
+    function resetAssetSelection() {
+      activeKey = null;
+      row.classList.add("hidden");
+      empty.textContent = "カテゴリを選択してください。";
+      empty.classList.remove("hidden");
+      updateTabs();
+    }
+
     for (const group of groups) {
       const btn = document.createElement("button");
       btn.className = "assetTab";
       btn.type = "button";
       btn.textContent = group.label;
       btn.addEventListener("click", () => {
-        if (activeKey === group.key) return;
-        activeKey = group.key;
-        renderGroup(activeKey);
+        renderGroup(group.key);
         updateTabs();
       });
       tabButtons.set(group.key, btn);
@@ -1202,8 +1248,8 @@
       e.preventDefault();
     }, { passive: false });
 
-    renderGroup(activeKey);
-    updateTabs();
+    resetAssetSelectionCallback = resetAssetSelection;
+    resetAssetSelection();
   }
 
   function getUsedAssetNames() {
@@ -1509,6 +1555,9 @@
     setHistoryListener(fn) {
       historyListener = fn;
       notifyHistory();
+    },
+    resetAssetSelection() {
+      resetAssetSelectionCallback?.();
     },
   };
 }

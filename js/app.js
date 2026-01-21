@@ -34,6 +34,7 @@ const viewDesign = document.getElementById("viewDesign");
 const viewGallery = document.getElementById("viewGallery");
 const viewProfile = document.getElementById("viewProfile");
 const viewTimeline = document.getElementById("viewTimeline");
+const topbar = document.querySelector(".topbar");
 
 const userBadge = document.getElementById("userBadge");
 
@@ -48,6 +49,9 @@ const panelDrawBtn = document.getElementById("panelDrawBtn");
 const panelStickerBtn = document.getElementById("panelStickerBtn");
 const panelDraw = document.getElementById("panelDraw");
 const panelSticker = document.getElementById("panelSticker");
+const designToggle = document.getElementById("designToggle");
+const adjustPanelHolder = document.getElementById("adjustPanelHolder");
+const adjustPanelBody = document.getElementById("adjustPanelBody");
 const btnUndo = document.getElementById("btnUndo");
 const btnRedo = document.getElementById("btnRedo");
 
@@ -501,6 +505,11 @@ function updatePenOptions() {
   });
 }
 
+function clearDrawToolSelection() {
+  toolPen?.classList.remove("active");
+  toolEraser?.classList.remove("active");
+}
+
 function setDrawTool(tool) {
   const isPen = tool === "pen";
   toolPen?.classList.toggle("active", isPen);
@@ -523,25 +532,46 @@ editor.setDrawMode("select");
 updatePenOptions();
 if (penSizeValue) penSizeValue.textContent = String(clampNumber(penSize?.value, 1, 40, 6));
 if (drawStrokeWidthValue) drawStrokeWidthValue.textContent = String(clampNumber(drawStrokeWidth?.value, 0, 12, 0));
-setDrawTool("pen");
+
+function closeAdjustPanel() {
+  activeAdjustPanel = null;
+  panelDrawBtn?.classList.remove("active");
+  panelStickerBtn?.classList.remove("active");
+  panelDraw?.classList.add("hidden");
+  panelSticker?.classList.add("hidden");
+  editor.setDrawMode("select");
+  clearDrawToolSelection();
+  editor.resetAssetSelection?.();
+}
 
 function setAdjustPanel(panel) {
+  if (activeAdjustPanel === panel) {
+    closeAdjustPanel();
+    return;
+  }
+  activeAdjustPanel = panel;
   const isDraw = panel === "draw";
   const isSticker = panel === "sticker";
   panelDrawBtn?.classList.toggle("active", isDraw);
   panelStickerBtn?.classList.toggle("active", isSticker);
   panelDraw?.classList.toggle("hidden", !isDraw);
   panelSticker?.classList.toggle("hidden", !isSticker);
-  if (isDraw) {
-    editor.setDrawMode("draw");
-  } else {
-    editor.setDrawMode("select");
-  }
+  editor.setDrawMode(isDraw ? "draw" : "select");
+  clearDrawToolSelection();
+  if (isSticker) editor.resetAssetSelection?.();
 }
 
 panelDrawBtn?.addEventListener("click", () => setAdjustPanel("draw"));
 panelStickerBtn?.addEventListener("click", () => setAdjustPanel("sticker"));
-setAdjustPanel("sticker");
+designToggle?.addEventListener("click", () => {
+  const expanded = designToggle.getAttribute("aria-expanded") === "true";
+  designToggle.setAttribute("aria-expanded", String(!expanded));
+  adjustPanelHolder?.classList.toggle("hidden", expanded);
+  adjustPanelBody?.classList.toggle("hidden", expanded);
+  if (!expanded) {
+    setAdjustPanel("sticker");
+  }
+});
 
 let gallery = null;
 let uid = "";
@@ -554,6 +584,7 @@ let timelineRecommendDocs = [];
 let timelineFollowingDocs = [];
 let timelineFilterValue = "all";
 let invitePrompted = false;
+let activeAdjustPanel = null;
 
 tabDesign?.addEventListener("click", showDesign);
 tabGallery?.addEventListener("click", async () => {
@@ -1599,6 +1630,33 @@ window.addEventListener("message", async (event) => {
     if (profileStatus) profileStatus.textContent = "";
   }
 });
+
+const TOPBAR_SCROLL_DELTA = 18;
+const TOPBAR_HIDE_THRESHOLD = 80;
+let topbarLastScrollY = window.scrollY;
+let topbarFrameId = null;
+
+function refreshTopbarVisibility() {
+  if (!topbar) return;
+  const currentY = window.scrollY;
+  const delta = currentY - topbarLastScrollY;
+  if (delta > TOPBAR_SCROLL_DELTA && currentY > TOPBAR_HIDE_THRESHOLD) {
+    topbar.classList.add("topbar-hidden");
+  } else if (delta < -TOPBAR_SCROLL_DELTA || currentY <= TOPBAR_HIDE_THRESHOLD) {
+    topbar.classList.remove("topbar-hidden");
+  }
+  topbarLastScrollY = currentY;
+}
+
+function scheduleTopbarUpdate() {
+  if (topbarFrameId !== null) return;
+  topbarFrameId = requestAnimationFrame(() => {
+    refreshTopbarVisibility();
+    topbarFrameId = null;
+  });
+}
+
+window.addEventListener("scroll", scheduleTopbarUpdate, { passive: true });
 
 idSave?.addEventListener("click", async () => {
   if (!authReady || !uid || !auth.currentUser) {
